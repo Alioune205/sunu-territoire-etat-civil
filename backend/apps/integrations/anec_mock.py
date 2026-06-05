@@ -1,38 +1,37 @@
+"""
+Mock pour l'Agence Nationale de l'Etat Civil (ANEC).
+"""
 import time
-import logging
+from .base import BaseMockClient
 
-logger = logging.getLogger('system')
-
-class ANECMockClient:
+class ANECMockClient(BaseMockClient):
     """
-    Mock client for the Agence Nationale de l'Etat Civil (ANEC).
-    Simulates API calls to the national registry.
+    Client de simulation pour l'ANEC.
     """
-    
-    @staticmethod
-    def verify_cni(cni_number):
-        """
-        Simulates verification of a National Identity Card number.
-        Returns a mock payload.
-        """
-        logger.info(f"[ANEC Mock] Verifying CNI: {cni_number}")
-        time.sleep(1) # Simulate network delay
+    def __init__(self):
+        super().__init__("ANEC")
         
-        # Simple mock logic: fail if CNI starts with 0
-        if cni_number and str(cni_number).startswith('0'):
+    def ping(self):
+        return {"status": "up", "latency": "45ms"}
+
+    def verify_cni(self, cni_number):
+        self.log_call("verify_cni", {"cni_number": cni_number})
+        time.sleep(0.5)
+        
+        if not cni_number or str(cni_number).startswith('0'):
             return {
-                "is_valid": False,
-                "error": "CNI invalide ou non trouvée dans le registre national"
+                "success": False,
+                "error": "CNI invalide ou introuvable",
             }
             
         return {
-            "is_valid": True,
+            "success": True,
             "data": {
                 "cni_number": cni_number,
-                "first_name": "Mock First Name",
-                "last_name": "Mock Last Name",
-                "date_of_birth": "1990-01-01",
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "date_of_birth": "1980-05-14",
                 "place_of_birth": "Dakar",
-                "status": "active"
+                "is_active": True
             }
         }

@@ -1,42 +1,41 @@
+"""
+Mock pour les passerelles de paiement.
+"""
 import time
 import uuid
-import logging
+from .base import BaseMockClient
 
-logger = logging.getLogger('system')
+class PaymentGatewayMock(BaseMockClient):
+    """
+    Client de simulation pour Wave/Orange Money/Free Money.
+    """
+    def __init__(self):
+        super().__init__("PAYMENT")
+        
+    def ping(self):
+        return {"status": "up"}
 
-class PaymentGatewayMock:
-    """
-    Mock client for Payment Gateways (Wave, Orange Money, Free Money).
-    Simulates API calls for transaction initiation and status checking.
-    """
-    
-    @staticmethod
-    def initiate_payment(amount, phone_number, provider='wave'):
-        """
-        Simulates initiating a mobile money payment.
-        """
-        logger.info(f"[Payment Mock] Initiating {provider} payment of {amount} for {phone_number}")
-        time.sleep(1) # Simulate network delay
+    def initiate_payment(self, amount, phone_number, provider='wave'):
+        self.log_call("initiate_payment", {
+            "amount": amount, "phone": phone_number, "provider": provider
+        })
+        time.sleep(0.8)
         
         transaction_id = str(uuid.uuid4())
+        return {
+            "success": True,
+            "transaction_id": transaction_id,
+            "payment_url": f"https://mock-payment.local/pay/{transaction_id}",
+            "status": "pending"
+        }
+
+    def check_transaction_status(self, transaction_id):
+        self.log_call("check_status", {"transaction_id": transaction_id})
+        time.sleep(0.3)
         
         return {
             "success": True,
             "transaction_id": transaction_id,
-            "payment_url": f"https://mock-payment-gateway.local/pay/{transaction_id}",
-            "status": "pending"
-        }
-
-    @staticmethod
-    def check_transaction_status(transaction_id):
-        """
-        Simulates checking the status of a transaction.
-        """
-        logger.info(f"[Payment Mock] Checking status for transaction {transaction_id}")
-        time.sleep(0.5)
-        
-        return {
-            "transaction_id": transaction_id,
-            "status": "completed", # Mocking that it's always successful
+            "status": "completed",
             "receipt_number": f"RCPT-{str(uuid.uuid4())[:8].upper()}"
         }
