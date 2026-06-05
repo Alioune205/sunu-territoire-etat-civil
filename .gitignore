@@ -1,0 +1,22 @@
+# Ignore backend specific files
+backend/venv/
+backend/env/
+backend/.venv/
+backend/db.sqlite3
+backend/db.sqlite3-journal
+backend/.env
+
+# General ignores
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+node_modules/
+.env

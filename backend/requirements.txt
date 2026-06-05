@@ -1,0 +1,27 @@
+# Django Core
+Django>=5.1,<5.2
+djangorestframework>=3.15,<3.16
+
+# Authentication
+djangorestframework-simplejwt>=5.3,<5.4
+
+# API Documentation
+drf-spectacular>=0.28,<0.29
+
+# Filtering
+django-filter>=24.0,<25.0
+
+# Security & CORS
+django-cors-headers>=4.4,<4.5
+
+# Database
+psycopg2-binary>=2.9,<2.10
+
+# Environment Variables
+python-decouple>=3.8,<3.9
+
+# Image Processing
+Pillow>=10.0,<11.0
+
+# Production Server
+gunicorn>=22.0,<23.0
