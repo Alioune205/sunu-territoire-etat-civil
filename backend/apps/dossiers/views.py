@@ -200,9 +200,18 @@ class DossierViewSet(viewsets.ModelViewSet):
         dossier.completed_at = timezone.now()
         dossier.save(update_fields=['status', 'completed_at', 'updated_at'])
 
+        # Génération du PDF avec QR Code (DEV 1B)
+        from apps.dossiers.services.pdf_generator import generate_dossier_pdf
+        try:
+            document = generate_dossier_pdf(dossier)
+            msg = 'Dossier approuvé avec succès et document généré.'
+        except Exception as e:
+            # S'il y a une erreur lors de la génération du PDF, on logge mais on ne bloque pas l'approbation
+            msg = f'Dossier approuvé, mais erreur lors de la génération du PDF : {str(e)}'
+
         return success_response(
             data=DossierDetailSerializer(dossier).data,
-            message='Dossier approuvé avec succès.',
+            message=msg,
         )
 
     @extend_schema(tags=['Dossiers'], summary='Rejeter un dossier', request=DossierRejectSerializer)
