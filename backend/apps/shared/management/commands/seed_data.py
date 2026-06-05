@@ -51,7 +51,9 @@ class Command(BaseCommand):
         agents = []
 
         for u_data in users_data:
-            if not User.objects.filter(email=u_data['email']).exists():
+            email = u_data['email']
+            user = User.objects.filter(email=email).first()
+            if not user:
                 commune = u_data.pop('commune')
                 is_staff = u_data.pop('is_staff', False)
                 is_superuser = u_data.pop('is_superuser', False)
@@ -66,16 +68,18 @@ class Command(BaseCommand):
                 user.save()
 
                 if user.role == User.Role.CITIZEN:
-                    citizens.append(user)
                     # Update citizen profile
                     profile = user.profile
                     profile.cni_number = f"1{''.join([str(random.randint(0,9)) for _ in range(12)])}"
                     profile.address = f"Rue {random.randint(1, 100)}, {commune.name if commune else 'Dakar'}"
                     profile.save()
-                else:
-                    agents.append(user)
 
                 self.stdout.write(self.style.SUCCESS(f"Created user: {user.email} ({user.role})"))
+            
+            if user.role == User.Role.CITIZEN:
+                citizens.append(user)
+            else:
+                agents.append(user)
 
         # 3. Create Dossiers
         if citizens and dakar_plateau:
