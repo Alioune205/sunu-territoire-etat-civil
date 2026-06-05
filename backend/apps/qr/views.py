@@ -1,3 +1,16 @@
+"""
+Views for QR Code generation and validation.
+"""
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+
+from drf_spectacular.utils import extend_schema
+
+from apps.dossiers.models import Dossier
+from apps.shared.responses import success_response, error_response
+
+
 @extend_schema(tags=['QR Code Public Verification'], summary='Vérifier l\'authenticité d\'un document')
 @api_view(['GET'])
 @permission_classes([AllowAny])
