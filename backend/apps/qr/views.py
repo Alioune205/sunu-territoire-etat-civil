@@ -7,10 +7,8 @@ from rest_framework.permissions import AllowAny
 
 from drf_spectacular.utils import extend_schema
 
-# pyrefly: ignore [missing-import]
-from apps.dossiers.models import Dossier
-# pyrefly: ignore [missing-import]
-from apps.shared.responses import success_response, error_response
+from ..dossiers.models import Dossier
+from ..shared.responses import success_response, error_response
 
 
 @extend_schema(
