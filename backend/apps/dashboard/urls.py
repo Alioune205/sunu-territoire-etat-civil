@@ -13,6 +13,7 @@ from .views import (
     ProcessingDelaysView,
     RecentDossiersView,
     StaleDossiersView,
+    ExportDossiersCSVView,
 )
 
 app_name = 'dashboard'
@@ -27,4 +28,5 @@ urlpatterns = [
     path('processing-delays/', ProcessingDelaysView.as_view(), name='processing-delays'),
     path('recent/', RecentDossiersView.as_view(), name='recent'),
     path('stale/', StaleDossiersView.as_view(), name='stale'),
+    path('export-csv/', ExportDossiersCSVView.as_view(), name='export-csv'),
 ]
