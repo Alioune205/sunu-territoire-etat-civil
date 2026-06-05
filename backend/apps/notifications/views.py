@@ -3,6 +3,7 @@ Notifications views.
 """
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 from .models import FCMDevice, Notification
@@ -14,6 +15,7 @@ class FCMDeviceViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin, mixins.
     Manage FCM devices for the authenticated user.
     """
     serializer_class = FCMDeviceSerializer
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         return FCMDevice.objects.filter(user=self.request.user)
@@ -24,6 +26,7 @@ class NotificationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixi
     View and manage notifications for the authenticated user.
     """
     serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)

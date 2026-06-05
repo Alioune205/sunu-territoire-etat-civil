@@ -117,6 +117,12 @@ class HealthCheckView(APIView):
 
         http_status = status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
 
+        # Masquage des données sensibles pour les accès publics (Audit Fix)
+        if not request.user.is_authenticated or not getattr(request.user, 'is_admin_staff', False):
+            disk_status = {'status': 'ok'} if disk_status.get('percent_used', 100) < 95 else {'status': 'warning'}
+            memory_status = {'status': 'ok'} if memory_status.get('percent_used', 100) < 95 else {'status': 'warning'}
+            cpu_percent = 'hidden'
+
         return Response({
             'status': 'healthy' if is_healthy else 'unhealthy',
             'timestamp': timezone.now().isoformat(),

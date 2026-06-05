@@ -13,12 +13,29 @@ logger = logging.getLogger('system')
 
 
 @receiver(pre_save, sender=Dossier)
-def dossier_status_change_notification(sender, instance, **kwargs):
+def capture_old_status(sender, instance, **kwargs):
+    """
+    Capture l'ancien statut avant la sauvegarde pour pouvoir 
+    envoyer la notification dans le post_save en toute sécurité.
+    Correction d'audit : Ne pas envoyer de push si la sauvegarde échoue.
+    """
+    if instance.pk:
+        try:
+            old_instance = Dossier.objects.get(pk=instance.pk)
+            instance._old_status = old_instance.status
+        except Dossier.DoesNotExist:
+            instance._old_status = None
+    else:
+        instance._old_status = None
+
+
+@receiver(post_save, sender=Dossier)
+def dossier_status_change_notification(sender, instance, created, **kwargs):
     """
     Envoie une notification FCM au citoyen/agent quand le statut d'un dossier change.
-    Utilise `pre_save` pour comparer l'ancien et le nouveau statut.
+    Utilise `post_save` pour garantir que la donnée est commitée en base.
     """
-    if not instance.pk:
+    if created:
         # Nouveau dossier — notifier uniquement si soumis directement
         if instance.status == Dossier.Status.SUBMITTED:
             FCMService.send_notification_to_user(
@@ -30,13 +47,10 @@ def dossier_status_change_notification(sender, instance, **kwargs):
             )
         return
 
-    try:
-        old_instance = Dossier.objects.get(pk=instance.pk)
-    except Dossier.DoesNotExist:
-        return
+    old_status = getattr(instance, '_old_status', None)
 
     # Pas de changement de statut → rien à faire
-    if old_instance.status == instance.status:
+    if old_status == instance.status:
         return
 
     # ── Notifications selon le nouveau statut ──
