@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
-from apps.shared.permissions import IsAdminStaff, IsSuperAdmin, IsOwnerOrAdmin
+from apps.shared.permissions import IsAdminStaff, IsSuperAdmin
 from apps.shared.responses import success_response, error_response
 
 from .models import User, CitizenProfile

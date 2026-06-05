@@ -9,7 +9,7 @@ from drf_spectacular.utils import extend_schema
 from django.contrib.auth import get_user_model
 
 from apps.shared.permissions import IsAdminStaff, IsSuperAdmin
-from apps.shared.responses import success_response, error_response
+from apps.shared.responses import success_response
 
 from .serializers import RoleSerializer, RoleAssignSerializer
 

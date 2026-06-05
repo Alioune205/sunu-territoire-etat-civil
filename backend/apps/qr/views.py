@@ -7,21 +7,29 @@ from rest_framework.permissions import AllowAny
 
 from drf_spectacular.utils import extend_schema
 
+# pyrefly: ignore [missing-import]
 from apps.dossiers.models import Dossier
+# pyrefly: ignore [missing-import]
 from apps.shared.responses import success_response, error_response
 
 
-@extend_schema(tags=['QR Code Public Verification'], summary='Vérifier l\'authenticité d\'un document')
+@extend_schema(
+    tags=['QR Code Public Verification'],
+    summary="Vérifier l'authenticité d'un document"
+)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def verify_document(request, reference):
     """
     GET /api/qr/verify/{reference}/
-    Vérifie l'authenticité d'un document via sa référence (contenue dans le QR Code).
+    Vérifie l'authenticité d'un document via sa référence.
     """
     try:
-        dossier = Dossier.objects.get(reference=reference, status=Dossier.Status.APPROVED)
-        
+        dossier = Dossier.objects.get(
+            reference=reference,
+            status=Dossier.Status.APPROVED
+        )
+
         # Retourne des données publiques non sensibles
         public_data = {
             'reference': dossier.reference,
@@ -31,7 +39,7 @@ def verify_document(request, reference):
             'commune': dossier.commune.name if dossier.commune else None,
             'completed_at': dossier.completed_at,
         }
-        
+
         return success_response(
             data=public_data,
             message='Document authentique et valide.'

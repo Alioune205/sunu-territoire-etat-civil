@@ -10,7 +10,6 @@ from reportlab.lib.utils import ImageReader
 from django.conf import settings
 from django.core.files.base import ContentFile
 from apps.documents.models import Document
-from apps.qr.models import QRCode  # Wait, does qr.models exist? I should check. For now, I'll just generate the image.
 
 def generate_dossier_pdf(dossier):
     """
