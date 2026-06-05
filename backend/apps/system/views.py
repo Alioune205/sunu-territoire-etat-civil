@@ -1,6 +1,10 @@
 """
 System views — Health check, monitoring, métriques système et gestion des logs.
-Accessible publiquement (health check) ou réservé aux super_admins (métriques avancées).
+
+Endpoints :
+    - GET /api/system/health/    → Public, utilisé par les outils de monitoring
+    - GET /api/system/metrics/   → Super admin uniquement, métriques avancées
+    - GET /api/system/logs/      → Super admin uniquement, journal système
 """
 import time
 import logging
@@ -11,6 +15,7 @@ import psutil
 from django.db import connection
 from django.conf import settings
 from django.utils import timezone
+from django.core.cache import cache
 from django.contrib.auth import get_user_model
 
 from rest_framework.views import APIView
@@ -33,7 +38,7 @@ class HealthCheckView(APIView):
     """
     GET /api/system/health/
     Retourne l'état de santé du backend : DB, disque, mémoire, latence API.
-    Accessible sans authentification (utilisé par les outils de monitoring).
+    Accessible sans authentification (utilisé par Docker, Kubernetes, UptimeRobot, etc.).
     """
     permission_classes = [AllowAny]
 
@@ -90,29 +95,47 @@ class HealthCheckView(APIView):
         except Exception:
             cpu_percent = None
 
+        # ── Cache check ──
+        cache_status = 'ok'
+        try:
+            cache.set('_health_check', True, 10)
+            if not cache.get('_health_check'):
+                cache_status = 'error: could not read back'
+        except Exception as e:
+            cache_status = f'error: {str(e)}'
+
         # ── API latency ──
         api_latency_ms = round((time.monotonic() - start_time) * 1000, 2)
 
         # ── Overall status ──
         is_healthy = (
             db_status == 'ok'
+            and cache_status == 'ok'
             and disk_status.get('percent_used', 100) < 95
             and memory_status.get('percent_used', 100) < 95
         )
 
+        http_status = status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+
         return Response({
             'status': 'healthy' if is_healthy else 'unhealthy',
             'timestamp': timezone.now().isoformat(),
-            'version': '1.0.0',
-            'database': {
-                'status': db_status,
-                'latency_ms': db_latency_ms,
+            'version': getattr(settings, 'APP_VERSION', '1.0.0'),
+            'environment': 'production' if not settings.DEBUG else 'development',
+            'checks': {
+                'database': {
+                    'status': db_status,
+                    'latency_ms': db_latency_ms,
+                },
+                'cache': {
+                    'status': cache_status,
+                },
+                'disk': disk_status,
+                'memory': memory_status,
+                'cpu_percent': cpu_percent,
             },
-            'disk': disk_status,
-            'memory': memory_status,
-            'cpu_percent': cpu_percent,
             'api_latency_ms': api_latency_ms,
-        })
+        }, status=http_status)
 
 
 class SystemMetricsView(APIView):
@@ -129,6 +152,12 @@ class SystemMetricsView(APIView):
         description='Informations détaillées sur le serveur, la base de données et les volumes.',
     )
     def get(self, request):
+        # ── Cache des métriques (lourd en calcul) ──
+        cache_key = 'system:metrics'
+        cached = cache.get(cache_key)
+        if cached:
+            return success_response(data=cached)
+
         # ── Application metrics ──
         total_users = User.objects.count()
         active_users = User.objects.filter(is_active=True).count()
@@ -145,13 +174,12 @@ class SystemMetricsView(APIView):
         dossiers_7d = Dossier.objects.filter(created_at__gte=now - timedelta(days=7)).count()
         dossiers_30d = Dossier.objects.filter(created_at__gte=now - timedelta(days=30)).count()
 
-        # ── Server info ──
+        # ── Server info (sans exposer de données sensibles) ──
         server_info = {
             'os': platform.system(),
-            'os_version': platform.version(),
             'python_version': platform.python_version(),
-            'hostname': platform.node(),
             'architecture': platform.machine(),
+            'django_debug': settings.DEBUG,
         }
 
         # ── Database info ──
@@ -170,16 +198,19 @@ class SystemMetricsView(APIView):
             db_info['error'] = str(e)
 
         # ── Process info ──
-        process = psutil.Process()
-        process_info = {
-            'pid': process.pid,
-            'memory_mb': round(process.memory_info().rss / (1024 ** 2), 2),
-            'cpu_percent': process.cpu_percent(),
-            'threads': process.num_threads(),
-            'uptime_seconds': round(time.time() - process.create_time()),
-        }
+        try:
+            process = psutil.Process()
+            process_info = {
+                'pid': process.pid,
+                'memory_mb': round(process.memory_info().rss / (1024 ** 2), 2),
+                'cpu_percent': process.cpu_percent(),
+                'threads': process.num_threads(),
+                'uptime_seconds': round(time.time() - process.create_time()),
+            }
+        except Exception as e:
+            process_info = {'error': str(e)}
 
-        return success_response(data={
+        data = {
             'application': {
                 'total_users': total_users,
                 'active_users': active_users,
@@ -194,7 +225,11 @@ class SystemMetricsView(APIView):
             'server': server_info,
             'database': db_info,
             'process': process_info,
-        })
+        }
+
+        # Cache 60 secondes (les métriques n'ont pas besoin d'être temps réel)
+        cache.set(cache_key, data, 60)
+        return success_response(data=data)
 
 
 class SystemLogsView(APIView):
@@ -215,6 +250,13 @@ class SystemLogsView(APIView):
                 description='Nombre de lignes à retourner (défaut: 50, max: 500).',
                 required=False,
             ),
+            OpenApiParameter(
+                name='level',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filtrer par niveau de log (INFO, WARNING, ERROR).',
+                required=False,
+            ),
         ],
     )
     def get(self, request):
@@ -224,22 +266,38 @@ class SystemLogsView(APIView):
         except (ValueError, TypeError):
             num_lines = 50
 
+        level_filter = request.query_params.get('level', '').upper()
+        valid_levels = {'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'DEBUG'}
+
         log_file = settings.BASE_DIR / 'logs' / 'system.log'
 
         if not log_file.exists():
-            return success_response(data={'lines': [], 'total': 0}, message='Aucun log disponible.')
+            return success_response(
+                data={'lines': [], 'total_lines': 0, 'showing': 0},
+                message='Aucun log disponible.',
+            )
 
         try:
             with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
                 all_lines = f.readlines()
-            tail = all_lines[-num_lines:]
+
+            # Filtrage optionnel par niveau
+            if level_filter and level_filter in valid_levels:
+                filtered = [line for line in all_lines if level_filter in line]
+            else:
+                filtered = all_lines
+
+            tail = filtered[-num_lines:]
 
             return success_response(data={
                 'lines': [line.strip() for line in tail],
                 'total_lines': len(all_lines),
                 'showing': len(tail),
-                'log_file': str(log_file),
+                'filter_applied': level_filter if level_filter in valid_levels else None,
             })
         except Exception as e:
             logger.error(f'[SystemLogs] Failed to read log file: {e}')
-            return error_response(message=f'Erreur de lecture du fichier log : {str(e)}')
+            return error_response(
+                message='Erreur de lecture du fichier log.',
+                status_code=500,
+            )
