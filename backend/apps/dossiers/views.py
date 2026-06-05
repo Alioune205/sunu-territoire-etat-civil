@@ -14,13 +14,11 @@ from django.contrib.auth import get_user_model
 from apps.shared.permissions import (
     IsCitizen,
     IsAdminStaff,
-    IsReceptionAgent,
-    IsVerificationAgent,
     IsCivilAdmin,
 )
 from apps.shared.responses import success_response, error_response
 
-from .models import Dossier, DossierComment
+from .models import Dossier
 from .serializers import (
     DossierCreateSerializer,
     DossierListSerializer,
@@ -204,7 +202,7 @@ class DossierViewSet(viewsets.ModelViewSet):
         from apps.dossiers.services.pdf_generator import generate_dossier_pdf
         try:
             document = generate_dossier_pdf(dossier)
-            msg = 'Dossier approuvé avec succès et document généré.'
+            msg = f'Dossier approuvé avec succès et document {document.original_filename} généré.'
         except Exception as e:
             # S'il y a une erreur lors de la génération du PDF, on logge mais on ne bloque pas l'approbation
             msg = f'Dossier approuvé, mais erreur lors de la génération du PDF : {str(e)}'
