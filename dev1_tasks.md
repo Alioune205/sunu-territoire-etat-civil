@@ -2,11 +2,11 @@
 
 Ce document détaille la suite du développement de l'architecture backend pour **SUNU CIVIL**. En tant que **DEV 1A (Lansana)**, vous avez mis en place la structure principale, la base de données, la sécurité JWT, les communes et la structure globale.
 
-Voici les missions spécifiques et détaillées des trois autres membres de l'équipe **DEV 1 (DEV 1B, DEV 1C, DEV 1D)** pour finaliser le cœur du backend.
+Voici les missions spécifiques et détaillées des trois autres membres de l'équipe **DEV 1 ( DEV 1B PATHE FALL, DEV 1C MAIMOUNA SALL, DEV 1D IBRAHIMA KHALILOU DIALLO)** pour finaliser le cœur du backend.
 
 ---
 
-## 🧑‍💻 DEV 1B : Gestion des Dossiers, Workflow et Machine à États
+## 🧑‍💻 DEV 1B : Gestion des Dossiers, Workflow et Machine à États - PATHE FALL
 
 **Mission principale** : Implémenter la logique métier stricte du cycle de vie des dossiers d'état civil, les transitions de statut sécurisées, l'affectation automatique et les commentaires.
 
@@ -36,7 +36,7 @@ Voici les missions spécifiques et détaillées des trois autres membres de l'é
 
 ---
 
-## 🧑‍💻 DEV 1C : Stockage Sécurisé et Gestion des Documents
+## 🧑‍💻 DEV 1C : Stockage Sécurisé et Gestion des Documents - MAIMOUNA SALL
 
 **Mission principale** : Garantir la sécurité, l'intégrité et le stockage des pièces jointes téléversées par les citoyens (photos, scans de CNI, justificatifs).
 
@@ -59,7 +59,7 @@ Voici les missions spécifiques et détaillées des trois autres membres de l'é
 
 ---
 
-## 🧑‍💻 DEV 1D : Audit Logs Avancés, Signaux et API Dashboard Core
+## 🧑‍💻 DEV 1D : Audit Logs Avancés, Signaux et API Dashboard Core - IBRAHIMA KHALILOU DIALLO
 
 **Mission principale** : Garantir la traçabilité complète de l'application à des fins de sécurité et fournir des données agrégées pour l'application statistique (Dashboard).
 
