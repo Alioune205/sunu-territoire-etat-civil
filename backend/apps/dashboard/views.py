@@ -243,6 +243,11 @@ class ExportDossiersCSVView(DashboardFilterMixin, APIView):
     )
     def get(self, request):
         commune = self.get_commune_filter()
+        
+        # Correction Audit: Empêcher un export global pour les agents sans commune
+        if not commune and request.user.role != 'super_admin':
+            return error_response(message='Commune requise.', status_code=400)
+            
         qs = Dossier.objects.select_related(
             'citizen', 'commune', 'assigned_agent',
         ).all()

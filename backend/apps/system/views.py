@@ -118,7 +118,8 @@ class HealthCheckView(APIView):
         http_status = status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
 
         # Masquage des données sensibles pour les accès publics (Audit Fix)
-        if not request.user.is_authenticated or not getattr(request.user, 'is_admin_staff', False):
+        is_admin = hasattr(request.user, 'role') and request.user.role in ['civil_admin', 'super_admin']
+        if not request.user.is_authenticated or not is_admin:
             disk_status = {'status': 'ok'} if disk_status.get('percent_used', 100) < 95 else {'status': 'warning'}
             memory_status = {'status': 'ok'} if memory_status.get('percent_used', 100) < 95 else {'status': 'warning'}
             cpu_percent = 'hidden'
