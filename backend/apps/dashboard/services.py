@@ -164,13 +164,22 @@ def get_dashboard_kpis(user):
     )['avg']
     global_avg_processing_hours = _hours_from_duration(avg_duration_global)
 
-    # ---- KPIs par commune ----
-    # CORRECTION B-01 : une seule requête SQL GROUP BY au lieu de N+1.
-    # Le temps moyen est calculé via annotate() sur le queryset complet,
-    # puis récupéré via un dict en Python — zéro requête supplémentaire.
+    # ---- KPIs par commune — OPTIMISÉ : 2 requêtes SQL au lieu de N+1 ----
+    #
+    # Requête 1 : Statistiques de comptage par commune (COUNT conditionnels)
+    communes_scope = (
+        qs.values('commune__id', 'commune__name')
+          .annotate(
+              total_dossiers=Count('id'),
+              approved_count=Count('id', filter=Q(status=Dossier.Status.APPROVED)),
+              rejected_count=Count('id', filter=Q(status=Dossier.Status.REJECTED)),
+          )
+          .order_by('commune__name')
+    )
 
-    # Étape 1 : temps moyen par commune en une requête (dossiers completed only)
-    avg_by_commune_qs = (
+    # Requête 2 : Temps moyen de traitement par commune — UNE SEULE requête SQL GROUP BY
+    # (remplace la requête individuelle par commune dans la boucle)
+    avg_duration_by_commune_qs = (
         qs.filter(
             status=Dossier.Status.COMPLETED,
             submitted_at__isnull=False,
@@ -183,25 +192,14 @@ def get_dashboard_kpis(user):
             )
         )
         .values('commune__id')
-        .annotate(avg_dur=Avg('processing_duration'))
+        .annotate(avg_duration=Avg('processing_duration'))
     )
+    # Dict indexé par commune_id pour O(1) lookup — aucune requête SQL dans la boucle
     avg_duration_map = {
-        row['commune__id']: row['avg_dur']
-        for row in avg_by_commune_qs
+        row['commune__id']: row['avg_duration']
+        for row in avg_duration_by_commune_qs
     }
 
-    # Étape 2 : totaux par commune en une requête GROUP BY
-    communes_scope = (
-        qs.values('commune__id', 'commune__name')
-          .annotate(
-              total_dossiers=Count('id'),
-              approved_count=Count('id', filter=Q(status=Dossier.Status.APPROVED)),
-              rejected_count=Count('id', filter=Q(status=Dossier.Status.REJECTED)),
-          )
-          .order_by('commune__name')
-    )
-
-    # Étape 3 : assemblage en Python — aucune requête DB ici
     by_commune = []
     for row in communes_scope:
         total_c = row['total_dossiers']
@@ -209,6 +207,7 @@ def get_dashboard_kpis(user):
         rejection_rate = round(
             (rejected_c / total_c * 100) if total_c > 0 else 0.0, 2
         )
+        # Lookup O(1) dans le dict — aucune requête SQL supplémentaire
         avg_dur = avg_duration_map.get(row['commune__id'])
 
         by_commune.append({
@@ -221,86 +220,85 @@ def get_dashboard_kpis(user):
             'rejection_rate_percent': rejection_rate,
         })
 
-    # ---- Productivité des agents ----
-    # CORRECTION B-02 : remplacer la boucle (4 requêtes/agent) par une seule
-    # requête annotée sur le queryset User. Django génère un seul SQL avec
-    # COUNT + COUNT FILTER + COUNT FILTER — zéro N+1.
-
+    # ---- Productivité des agents — OPTIMISÉ : 3 requêtes SQL au lieu de 4N ----
+    #
+    # Requête 1 : Récupérer les agents (avec select_related)
     agent_roles = [
         'reception_agent',
         'verification_agent',
         'civil_admin',
         'super_admin',
     ]
-    agents_base_qs = User.objects.filter(role__in=agent_roles, is_active=True)
+    agents_qs = User.objects.filter(role__in=agent_roles, is_active=True)
     if user.role != 'super_admin' and user.commune_id:
-        agents_base_qs = agents_base_qs.filter(commune=user.commune)
+        agents_qs = agents_qs.filter(commune=user.commune)
+    agents_qs = agents_qs.select_related('commune')
 
-    # Toutes les annotations en une seule requête SQL
-    agents_annotated = (
-        agents_base_qs
-        .select_related('commune')
-        .annotate(
-            dossiers_handled=Count(
-                'assigned_dossiers',
-                filter=Q(assigned_dossiers__in=qs),
-            ),
-            approved=Count(
-                'assigned_dossiers',
-                filter=Q(
-                    assigned_dossiers__in=qs,
-                    assigned_dossiers__status=Dossier.Status.APPROVED,
-                ),
-            ),
-            rejected=Count(
-                'assigned_dossiers',
-                filter=Q(
-                    assigned_dossiers__in=qs,
-                    assigned_dossiers__status=Dossier.Status.REJECTED,
-                ),
-            ),
-        )
-        .filter(dossiers_handled__gt=0)
-        .order_by('-dossiers_handled')
-    )
+    # Extraire les IDs pour les requêtes agrégées suivantes
+    agent_ids = list(agents_qs.values_list('id', flat=True))
 
-    # Temps moyen par agent en une requête séparée (GROUP BY assigned_agent)
-    agent_avg_qs = (
-        qs.filter(
-            status=Dossier.Status.COMPLETED,
-            submitted_at__isnull=False,
-            completed_at__isnull=False,
-            assigned_agent__isnull=False,
+    if not agent_ids:
+        agent_productivity = []
+    else:
+        # Requête 2 : Comptage par agent et par statut — UNE SEULE requête SQL GROUP BY
+        # (remplace 3 requêtes COUNT par agent)
+        agent_stats_qs = (
+            qs.filter(assigned_agent_id__in=agent_ids)
+              .values('assigned_agent_id')
+              .annotate(
+                  total_handled=Count('id'),
+                  approved=Count('id', filter=Q(status=Dossier.Status.APPROVED)),
+                  rejected=Count('id', filter=Q(status=Dossier.Status.REJECTED)),
+              )
         )
-        .annotate(
-            processing_duration=ExpressionWrapper(
-                F('completed_at') - F('submitted_at'),
-                output_field=DurationField(),
-            )
-        )
-        .values('assigned_agent__id')
-        .annotate(avg_dur=Avg('processing_duration'))
-    )
-    agent_avg_map = {
-        row['assigned_agent__id']: row['avg_dur']
-        for row in agent_avg_qs
-    }
-
-    # Assemblage en Python — aucune requête DB ici
-    agent_productivity = [
-        {
-            'agent_id': agent.id,
-            'agent_name': agent.full_name,
-            'commune_name': agent.commune.name if agent.commune else None,
-            'dossiers_handled': agent.dossiers_handled,
-            'approved': agent.approved,
-            'rejected': agent.rejected,
-            'avg_processing_hours': _hours_from_duration(
-                agent_avg_map.get(agent.id)
-            ),
+        agent_stats_map = {
+            row['assigned_agent_id']: row
+            for row in agent_stats_qs
         }
-        for agent in agents_annotated
-    ]
+
+        # Requête 3 : Temps moyen de traitement par agent — UNE SEULE requête SQL GROUP BY
+        # (remplace la requête aggregate() par agent)
+        agent_avg_duration_qs = (
+            qs.filter(
+                assigned_agent_id__in=agent_ids,
+                status=Dossier.Status.COMPLETED,
+                submitted_at__isnull=False,
+                completed_at__isnull=False,
+            )
+            .annotate(
+                processing_duration=ExpressionWrapper(
+                    F('completed_at') - F('submitted_at'),
+                    output_field=DurationField(),
+                )
+            )
+            .values('assigned_agent_id')
+            .annotate(avg_duration=Avg('processing_duration'))
+        )
+        agent_avg_map = {
+            row['assigned_agent_id']: row['avg_duration']
+            for row in agent_avg_duration_qs
+        }
+
+        agent_productivity = []
+        for agent in agents_qs:
+            stats = agent_stats_map.get(agent.id)
+            if not stats or stats['total_handled'] == 0:
+                continue  # Ne pas afficher les agents sans dossier
+
+            agent_productivity.append({
+                'agent_id': agent.id,
+                'agent_name': agent.full_name,
+                'commune_name': agent.commune.name if agent.commune else None,
+                'dossiers_handled': stats['total_handled'],
+                'approved': stats['approved'],
+                'rejected': stats['rejected'],
+                'avg_processing_hours': _hours_from_duration(
+                    agent_avg_map.get(agent.id)
+                ),
+            })
+
+        # Trier par dossiers traités décroissant
+        agent_productivity.sort(key=lambda x: x['dossiers_handled'], reverse=True)
 
     # ---- Dossiers en attente depuis plus de 48h (indicateur SLA) ----
     cutoff_48h = timezone.now() - timedelta(hours=48)

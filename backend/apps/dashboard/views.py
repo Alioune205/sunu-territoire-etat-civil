@@ -263,13 +263,38 @@ class DashboardRecentActionsView(APIView):
     ]
 
     def get(self, request):
-        data = get_recent_activity(request.user, limit=10)
-        # Filtrer sur les actions importantes uniquement
-        filtered = [
-            item for item in data
-            if item['action'] in self.IMPORTANT_ACTIONS
+        # Filtrage directement au niveau ORM — plus efficace que post-filtrage Python.
+        # On applique action__in AVANT le LIMIT 10 pour garantir 10 vraies actions importantes.
+        from django.db.models import Q as DQ
+        qs = AuditLog.objects.select_related('user', 'user__commune')
+
+        if request.user.role != 'super_admin' and request.user.commune_id:
+            qs = qs.filter(
+                DQ(user__commune=request.user.commune) | DQ(user=request.user)
+            )
+
+        # Filtre SQL sur les actions importantes — pas de boucle Python
+        qs = qs.filter(action__in=self.IMPORTANT_ACTIONS).order_by('-created_at')[:10]
+
+        action_display_map = dict(AuditLog.Action.choices)
+        result = [
+            {
+                'id': log.id,
+                'user_name': log.user.full_name if log.user else None,
+                'user_email': log.user.email if log.user else None,
+                'user_role': log.user.role if log.user else None,
+                'action': log.action,
+                'action_display': action_display_map.get(log.action, log.action),
+                'resource_type': log.resource_type,
+                'resource_id': log.resource_id,
+                'details': log.details,
+                'ip_address': str(log.ip_address) if log.ip_address else None,
+                'created_at': log.created_at,
+            }
+            for log in qs
         ]
-        serializer = RecentActivitySerializer(filtered, many=True)
+
+        serializer = RecentActivitySerializer(result, many=True)
         return success_response(
             data=serializer.data,
             message='Dernières actions importantes récupérées.',
