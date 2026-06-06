@@ -25,3 +25,6 @@ Pillow>=10.0,<11.0
 
 # Production Server
 gunicorn>=22.0,<23.0
+
+# Firebase Cloud Messaging
+firebase-admin>=6.5.0,<7.0.0

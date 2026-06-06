@@ -80,6 +80,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.audit_logs.middleware.AuditMiddleware',
 ]
 
 # ==============================================================================
@@ -262,3 +263,79 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
 # Allowed file types for document uploads
 ALLOWED_DOCUMENT_TYPES = ['pdf', 'jpg', 'jpeg', 'png']
 MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10 MB
+
+# ==============================================================================
+# LOGGING
+# ==============================================================================
+
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'system_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': LOGS_DIR / 'system.log',
+            'formatter': 'verbose',
+        },
+        'error_file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': LOGS_DIR / 'errors.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'system': {
+            'handlers': ['console', 'system_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'errors': {
+            'handlers': ['console', 'error_file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+}
+
+# ==============================================================================
+# FIREBASE CONFIGURATION
+# ==============================================================================
+
+import firebase_admin
+from firebase_admin import credentials
+
+FIREBASE_CREDENTIALS_PATH = config('FIREBASE_CREDENTIALS_PATH', default='')
+if FIREBASE_CREDENTIALS_PATH:
+    # Resolve absolute path using BASE_DIR
+    cred_path = BASE_DIR / FIREBASE_CREDENTIALS_PATH
+    if cred_path.exists():
+        cred = credentials.Certificate(str(cred_path))
+        # Ensure we don't initialize twice (e.g. during auto-reload)
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(cred)
+    else:
+        print(f"Warning: Firebase credentials file not found at {cred_path}")
