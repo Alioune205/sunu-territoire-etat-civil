@@ -42,7 +42,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
                 user=instance.citizen,
                 title="Dossier reçu",
                 body=f"Votre dossier {instance.reference} a bien été reçu et enregistré.",
-                notification_type=Notification.TypeChoices.SUCCESS,
+                notification_type=Notification.Type.UPDATE,
                 data={'dossier_id': str(instance.id)}
             )
         return
@@ -60,7 +60,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             user=instance.citizen,
             title="Dossier reçu",
             body=f"Votre dossier {instance.reference} a bien été reçu et enregistré.",
-            notification_type=Notification.TypeChoices.SUCCESS,
+            notification_type=Notification.Type.UPDATE,
             data={'dossier_id': str(instance.id)}
         )
 
@@ -70,7 +70,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             user=instance.assigned_agent,
             title="Nouveau dossier attribué",
             body=f"Le dossier {instance.reference} vous a été attribué pour traitement.",
-            notification_type=Notification.TypeChoices.INFO,
+            notification_type=Notification.Type.INFO,
             data={'dossier_id': str(instance.id)}
         )
         # Notifier le citoyen que son dossier est en cours de traitement
@@ -78,7 +78,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             user=instance.citizen,
             title="Dossier en cours de traitement",
             body=f"Votre dossier {instance.reference} est en cours d'examen par un agent.",
-            notification_type=Notification.TypeChoices.INFO,
+            notification_type=Notification.Type.INFO,
             data={'dossier_id': str(instance.id)}
         )
 
@@ -87,7 +87,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             user=instance.citizen,
             title="Dossier approuvé ✅",
             body=f"Votre dossier {instance.reference} a été approuvé ! Il sera finalisé prochainement.",
-            notification_type=Notification.TypeChoices.SUCCESS,
+            notification_type=Notification.Type.UPDATE,
             data={'dossier_id': str(instance.id)}
         )
 
@@ -96,7 +96,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             user=instance.citizen,
             title="Action requise sur votre dossier",
             body=f"Votre dossier {instance.reference} nécessite une action ou a été rejeté.",
-            notification_type=Notification.TypeChoices.ACTION_REQUIRED,
+            notification_type=Notification.Type.WARNING,
             data={'dossier_id': str(instance.id)}
         )
 
@@ -105,7 +105,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             user=instance.citizen,
             title="Document disponible 🎉",
             body=f"Votre acte d'état civil (dossier {instance.reference}) est disponible !",
-            notification_type=Notification.TypeChoices.SUCCESS,
+            notification_type=Notification.Type.UPDATE,
             data={'dossier_id': str(instance.id)}
         )
 
