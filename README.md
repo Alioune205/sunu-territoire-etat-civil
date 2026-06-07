@@ -1,4 +1,4 @@
-# SUNU CIVIL - Plateforme GovTech (MVP Sénégal)
+# Teranga-Civil - Plateforme GovTech (MVP Sénégal)
 
 Ce dépôt contient le code source de **SUNU CIVIL**, une plateforme GovTech moderne destinée aux collectivités territoriales du Sénégal pour digitaliser et moderniser l'état civil et les démarches administratives.
 
