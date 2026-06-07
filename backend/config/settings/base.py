@@ -80,6 +80,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.audit_logs.middleware.AuditLogMiddleware',
 ]
 
 # ==============================================================================
@@ -262,3 +263,51 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
 # Allowed file types for document uploads
 ALLOWED_DOCUMENT_TYPES = ['pdf', 'jpg', 'jpeg', 'png']
 MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10 MB
+
+# ==============================================================================
+# LOGGING
+# ==============================================================================
+
+import os
+LOGS_DIR = BASE_DIR / 'logs'
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file_error': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': LOGS_DIR / 'sunucivil_errors.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file_error'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'apps': {
+            'handlers': ['console', 'file_error'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
