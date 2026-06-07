@@ -70,6 +70,7 @@ LOCAL_APPS = [
     'apps.qr',
     'apps.ai',
     'apps.dashboard',
+    'apps.system',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
