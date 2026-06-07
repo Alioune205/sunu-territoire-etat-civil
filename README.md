@@ -104,6 +104,64 @@ Le serveur sera disponible sur `http://127.0.0.1:8000/`.
 
 ---
 
+Voici une analyse claire des dépendances entre les développeurs des différentes équipes pour la réussite du projet :
+
+---
+
+### 🟢 1. Les développeurs indépendants (Créateurs de fondations)
+
+* **DEV 1A (Lansana Coly - Tech Lead Backend)** : 
+  * **Statut** : **100% Indépendant**. 
+  * **Pourquoi** : Vous concevez les fondations (base de données, structure des dossiers, rôles, sécurité JWT). Vous ne dépendez de personne, mais **tous les autres développeurs dépendent de vous**.
+
+---
+
+### 🟡 2. Les développeurs à dépendance directe (Dépendent du Core Backend)
+
+* **DEV 1B (Pathe Fall - Dossiers & Workflow)** :
+  * **Statut** : **Dépendant de DEV 1A**.
+  * **Pourquoi** : Il a besoin que votre modèle d'utilisateur (`User`), les `Communes` et vos décorateurs de permissions (`RBAC`) soient opérationnels pour coder la gestion des dossiers et la logique métier de validation.
+
+* **DEV 1D (Ibrahima Khalilou Diallo - IA & OCR)** :
+  * **Statut** : **Dépendant de DEV 1A & DEV 1B**.
+  * **Pourquoi** : Pour faire de l'OCR sur les documents et de la détection de doublons, il a besoin que DEV 1B ait terminé l'implémentation du stockage des documents et que DEV 1A ait finalisé les profils citoyens (pour comparer les textes extraits aux informations réelles).
+
+---
+
+### 🔴 3. Les développeurs à forte dépendance (En fin de chaîne)
+
+* **DEV 1C (Maimouna Sall - Notifications & Stats)** :
+  * **Statut** : **Très dépendante de DEV 1A & DEV 1B**.
+  * **Pourquoi** : Elle ne peut pas envoyer de notifications Firebase d'avancement de dossier si les dossiers (DEV 1B) et l'authentification (DEV 1A) ne sont pas stables. De même, ses statistiques dépendent des données des dossiers créés par DEV 1B.
+
+* **Équipe DEV 2 (Pape Alioune Sene & El Hadji Massogui Diop - React Dashboard)** :
+  * **Statut** : **Dépends entièrement de l'équipe DEV 1**.
+  * **Pourquoi** : Ils construisent le Dashboard React. Ils dépendent de DEV 1A pour la connexion (JWT), de DEV 1B pour la gestion des dossiers à afficher, et de DEV 1C pour consommer les endpoints de statistiques (`/api/dashboard/stats/`).
+
+* **Équipe DEV 3 & DEV 4 (Flutter & Mobile)** :
+  * **Statut** : **Dépends entièrement de l'équipe DEV 1**.
+  * **Pourquoi** : L'application mobile dépend de l'API REST Django complète pour l'inscription, la soumission des dossiers avec pièces jointes (DEV 1B) et la réception des notifications push (DEV 1C).
+
+---
+
+🛠️ Ce que vos collègues doivent faire sur leur machine :
+Installer PostgreSQL localement.
+Créer une base de données vide nommée sunucivil.
+Créer leur propre fichier .env (qui est exclu de Git) et y écrire leurs propres identifiants PostgreSQL locaux :
+env
+DB_NAME=sunucivil
+DB_USER=leur_nom_utilisateur_postgres  # ex: postgres
+DB_PASSWORD=leur_mot_de_passe_postgres # ex: admin123
+DB_HOST=localhost
+DB_PORT=5432
+Lancer ces deux commandes dans leur terminal pour cloner la structure et avoir les données de test :
+bash
+python manage.py migrate
+python manage.py seed_data
+Grâce à la commande seed_data que nous avons rendue robuste et identique pour tout le monde, en moins de 10 secondes ils auront exactement les mêmes utilisateurs et dossiers de test que vous sur leur ordinateur !
+
+---
+
 ## 🔗 Documentation de l'API (Swagger & Redoc)
 
 La documentation interactive de l'API est générée automatiquement et accessible aux développeurs Frontend et Mobile lorsque le serveur backend tourne :
