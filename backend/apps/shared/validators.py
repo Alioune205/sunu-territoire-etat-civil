@@ -1,5 +1,5 @@
 """
-Custom validators for SUNU CIVIL.
+Custom validators for TERANGA CIVIL.
 """
 import re
 

@@ -1,5 +1,5 @@
 """
-Shared abstract models for SUNU CIVIL.
+Shared abstract models for TERANGA CIVIL.
 """
 import uuid
 

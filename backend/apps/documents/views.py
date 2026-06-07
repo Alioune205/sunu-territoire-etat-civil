@@ -1,5 +1,5 @@
 """
-documents/views.py — SUNU CIVIL (DEV 1C)
+documents/views.py — TERANGA CIVIL (DEV 1C)
 =========================================
 Vues de gestion des documents téléversés.
 

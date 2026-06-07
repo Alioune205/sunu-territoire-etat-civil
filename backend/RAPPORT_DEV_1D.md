@@ -1,10 +1,10 @@
-# 🏆 Rapport de Livraison - Hackathon SUNU CIVIL
+# 🏆 Rapport de Livraison - Hackathon TERANGA CIVIL
 
 **Développeur :** Ibrahima Khalilou Diallo (DEV 1D)
 **Rôle :** IA & OCR, Audit Logs Avancés, Signaux et API Dashboard Core
 **Date de Livraison :** Juin 2026
 
-Ce rapport détaille l'ensemble des fonctionnalités implémentées sur la plateforme SUNU CIVIL (Backend Django) pour répondre aux exigences du MVP.
+Ce rapport détaille l'ensemble des fonctionnalités implémentées sur la plateforme TERANGA CIVIL (Backend Django) pour répondre aux exigences du MVP.
 
 ---
 

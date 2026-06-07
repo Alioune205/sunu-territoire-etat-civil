@@ -1,5 +1,5 @@
 """
-RBAC Permission classes for SUNU CIVIL.
+RBAC Permission classes for TERANGA CIVIL.
 These permissions check the user's role field for access control.
 """
 from rest_framework.permissions import BasePermission

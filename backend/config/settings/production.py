@@ -1,5 +1,5 @@
 """
-SUNU CIVIL — Production Settings
+TERANGA CIVIL — Production Settings
 """
 from .base import *  # noqa: F401,F403
 

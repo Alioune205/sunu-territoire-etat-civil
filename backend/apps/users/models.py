@@ -1,5 +1,5 @@
 """
-User and CitizenProfile models for SUNU CIVIL.
+User and CitizenProfile models for TERANGA CIVIL.
 """
 import uuid
 

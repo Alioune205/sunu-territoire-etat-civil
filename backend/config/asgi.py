@@ -1,5 +1,5 @@
 """
-ASGI config for SUNU CIVIL project.
+ASGI config for TERANGA CIVIL project.
 """
 import os
 from django.core.asgi import get_asgi_application

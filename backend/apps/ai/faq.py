@@ -8,7 +8,7 @@ FAQ_KNOWLEDGE_BASE = {
     r'\b(délai|delai|temps|combien.*temps)\b': "Le délai de traitement habituel des dossiers est de 48 à 72 heures ouvrables.",
     r'\b(prix|coût|cout|payer|tarif)\b': "Les démarches d'état civil de base sont généralement gratuites, à l'exception des timbres fiscaux nécessaires pour certains actes.",
     r'\b(erreur|modifier|changement)\b': "En cas d'erreur sur un acte, il faut entamer une procédure de jugement d'hérédité ou de rectification au niveau du tribunal d'instance.",
-    r'\b(bonjour|salut)\b': "Bonjour ! Je suis l'assistant de l'état civil SUNU CIVIL. Posez-moi votre question concernant vos démarches."
+    r'\b(bonjour|salut)\b': "Bonjour ! Je suis Ndiogoye, l'assistant IA de TERANGA CIVIL. Posez-moi votre question concernant vos démarches."
 }
 
 def get_faq_answer(question):

@@ -1,5 +1,5 @@
 """
-Custom exception handler for SUNU CIVIL.
+Custom exception handler for TERANGA CIVIL.
 Wraps DRF exceptions into the standardized response format.
 """
 from rest_framework.views import exception_handler

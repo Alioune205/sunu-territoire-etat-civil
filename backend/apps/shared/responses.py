@@ -1,5 +1,5 @@
 """
-Standardized API responses for SUNU CIVIL.
+Standardized API responses for TERANGA CIVIL.
 """
 from rest_framework.response import Response
 from rest_framework import status

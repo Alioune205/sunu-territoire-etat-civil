@@ -3,11 +3,18 @@ import pytesseract
 from PIL import Image
 import io
 
+import os
+
 logger = logging.getLogger(__name__)
 
-# Note pour Windows: Il faudra s'assurer que Tesseract-OCR est installé
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# Cross-platform compatibility for Tesseract
+# In production (Linux), Tesseract is usually in the PATH.
+tesseract_path = os.getenv('TESSERACT_CMD', None)
+if tesseract_path:
+    pytesseract.pytesseract.tesseract_cmd = tesseract_path
+elif os.name == 'nt':
+    # Fallback for Windows local development
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 def extract_text_from_image(image_file):
     """

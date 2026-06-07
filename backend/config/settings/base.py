@@ -1,5 +1,5 @@
 """
-SUNU CIVIL — Base Settings
+TERANGA CIVIL — Base Settings
 Common settings shared across all environments.
 """
 import os
@@ -265,9 +265,9 @@ SIMPLE_JWT = {
 # ==============================================================================
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'SUNU CIVIL API',
+    'TITLE': 'TERANGA CIVIL API',
     'DESCRIPTION': (
-        'API backend pour la plateforme GovTech SUNU CIVIL — '
+        'API backend pour la plateforme GovTech TERANGA CIVIL — '
         "Digitalisation des démarches administratives et d'état "
         'civil pour les collectivités territoriales du Sénégal.'
     ),

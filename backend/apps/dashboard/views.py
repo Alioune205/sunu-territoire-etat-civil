@@ -1,5 +1,5 @@
 """
-Dashboard statistics views for SUNU CIVIL.
+Dashboard statistics views for TERANGA CIVIL.
 """
 from collections import Counter
 from datetime import timedelta
@@ -75,39 +75,39 @@ class DashboardStatsView(APIView):
             ).annotate(count=Count('id'))
         }
 
-        review_durations = []
-        completion_durations = []
-
-        for dossier in Dossier.objects.exclude(
+        from datetime import timedelta
+        
+        avg_review_query = Dossier.objects.exclude(
             submitted_at__isnull=True
         ).exclude(
             reviewed_at__isnull=True
-        ).values('submitted_at', 'reviewed_at'):
-            review_durations.append(
-                dossier['reviewed_at'] - dossier['submitted_at']
+        ).aggregate(
+            avg_review=Avg(
+                ExpressionWrapper(
+                    F('reviewed_at') - F('submitted_at'),
+                    output_field=FloatField()
+                )
             )
+        )
 
-        for dossier in Dossier.objects.exclude(
+        avg_completion_query = Dossier.objects.exclude(
             submitted_at__isnull=True
         ).exclude(
             completed_at__isnull=True
-        ).values('submitted_at', 'completed_at'):
-            completion_durations.append(
-                dossier['completed_at'] - dossier['submitted_at']
+        ).aggregate(
+            avg_completion=Avg(
+                ExpressionWrapper(
+                    F('completed_at') - F('submitted_at'),
+                    output_field=FloatField()
+                )
             )
+        )
 
-        average_review_time = (
-            sum(
-                (d.total_seconds() for d in review_durations), 0
-            ) / len(review_durations)
-            if review_durations else 0
-        )
-        average_completion_time = (
-            sum(
-                (d.total_seconds() for d in completion_durations), 0
-            ) / len(completion_durations)
-            if completion_durations else 0
-        )
+        val_review = avg_review_query.get('avg_review') or 0
+        average_review_time = val_review.total_seconds() if isinstance(val_review, timedelta) else val_review
+
+        val_comp = avg_completion_query.get('avg_completion') or 0
+        average_completion_time = val_comp.total_seconds() if isinstance(val_comp, timedelta) else val_comp
 
         data = {
             'total_dossiers': total_dossiers,

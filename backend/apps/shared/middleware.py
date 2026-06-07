@@ -1,5 +1,5 @@
 """
-Custom middlewares for SUNU CIVIL.
+Custom middlewares for TERANGA CIVIL.
 """
 from django.utils.deprecation import MiddlewareMixin
 from apps.shared.utils import get_client_ip

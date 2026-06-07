@@ -1,5 +1,5 @@
 """
-Utility functions for SUNU CIVIL.
+Utility functions for TERANGA CIVIL.
 """
 import uuid
 from datetime import datetime
