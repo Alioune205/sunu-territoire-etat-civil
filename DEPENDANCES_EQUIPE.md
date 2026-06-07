@@ -9,13 +9,13 @@
 ```mermaid
 graph TD
     A["🔧 DEV 1A\nLansana Coly\nBackend Core + IA"]
-    B["📄 DEV 1B\nPDF + Timbres\n+ Signatures"]
-    C["🔔 DEV 1C\nNotifications\n+ Dashboard"]
-    D["🤖 DEV 1D\nIA & OCR\nNdiogoye"]
-    E["💻 DEV 2A\nReact Admin\nDashboard"]
-    F["🌐 DEV 2B\nReact Citoyen\nFrontend"]
-    G["📱 DEV 3\nFlutter Auth\n+ Onboarding"]
-    H["📱 DEV 4\nFlutter Dossiers\n+ Ndiogoye"]
+    B["📄 DEV 1B\nPathé Fall\nPDF + Timbres"]
+    C["🔔 DEV 1C\nMaïmouna Sall\nNotifications + Dashboard"]
+    D["🤖 DEV 1D\nKalz Le Frimeur\nIA & OCR"]
+    E["💻 DEV 2A\nPape Alioune Sène\nReact Admin"]
+    F["🌐 DEV 2B\nMassogui Diop\nReact Citoyen"]
+    G["📱 DEV 3\nDiouma Dione\nFlutter Auth"]
+    H["📱 DEV 4\nFatou Mbaye\nFlutter Dossiers"]
 
     A -->|OTP endpoints| G
     A -->|Login téléphone + Verify-register| F
@@ -86,7 +86,7 @@ graph TD
 
 ---
 
-## DEV 1B — PDF Officiels + Timbres + Signatures
+## DEV 1B — Pathé Fall · PDF Officiels + Timbres + Signatures
 
 > [!CAUTION]
 > DEV 1B ne dépend de personne mais **tout le monde attend DEV 1B**. C'est la livraison la plus critique pour le jury — il veut voir un vrai acte généré.
@@ -118,7 +118,7 @@ graph TD
 
 ---
 
-## DEV 1C — Notifications + Dashboard enrichi + Export CSV
+## DEV 1C — Maïmouna Sall · Notifications + Dashboard + Export
 
 > [!NOTE]
 > DEV 1C peut tout démarrer immédiatement. Son impact principal est sur le Dashboard admin (DEV 2A).
@@ -148,7 +148,7 @@ graph TD
 
 ---
 
-## DEV 1D — IA & OCR + Co-Ndiogoye avec DEV 1A
+## DEV 1D — Kalz Le Frimeur · IA & OCR + Co-Ndiogoye
 
 > [!NOTE]
 > DEV 1D peut avancer fort sur l'OCR sans personne. Ndiogoye se fait **en binôme avec DEV 1A**.
@@ -178,7 +178,7 @@ graph TD
 
 ---
 
-## DEV 2A — Dashboard React Admin
+## DEV 2A — Pape Alioune Sène · Dashboard React Admin
 
 > [!TIP]
 > DEV 2A a **~70% de son travail débloqué dès maintenant**. Pas besoin d'attendre pour démarrer.
@@ -208,7 +208,7 @@ graph TD
 
 ---
 
-## DEV 2B — React Frontend Citoyen
+## DEV 2B — Massogui Diop · React Frontend Citoyen
 
 > [!TIP]
 > DEV 2B peut construire **toutes les UI en avance** avec des mocks, et brancher les APIs dès qu'elles arrivent.
@@ -242,7 +242,7 @@ graph TD
 
 ---
 
-## DEV 3 — Flutter Auth + Onboarding
+## DEV 3 — Diouma Dione · Flutter Auth + Onboarding
 
 ### 🟢 Peut faire MAINTENANT
 
@@ -271,7 +271,7 @@ graph TD
 
 ---
 
-## DEV 4 — Flutter Dossiers + Ndiogoye
+## DEV 4 — Fatou Mbaye · Flutter Dossiers + Ndiogoye
 
 > [!TIP]
 > DEV 4 peut construire toute l'UI avec des données mockées **sans attendre DEV 3**. Il suffit de brancher le module auth quand il arrive.
@@ -348,3 +348,18 @@ gantt
 ---
 
 *Dernière mise à jour : 07 juin 2026 — Architecte DEV 1A (Lansana Coly)*
+
+---
+
+### Annuaire de l'équipe
+
+| Dev | Nom | Rôle |
+|-----|-----|------|
+| DEV 1A | **Lansana Coly** | Backend Core + Co-IA |
+| DEV 1B | **Pathé Fall** | PDF + Timbres + Signatures |
+| DEV 1C | **Maïmouna Sall** | Notifications + Dashboard + Export |
+| DEV 1D | **Kalz Le Frimeur** | IA & OCR + Co-Ndiogoye |
+| DEV 2A | **Pape Alioune Sène** | Dashboard Admin React |
+| DEV 2B | **Massogui Diop** | Frontend React Citoyen |
+| DEV 3 | **Diouma Dione** | Flutter Auth + Onboarding |
+| DEV 4 | **Fatou Mbaye** | Flutter Dossiers + Ndiogoye |
