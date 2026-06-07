@@ -6,7 +6,7 @@ import uuid
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 
-from apps.shared.validators import validate_phone_senegal, validate_cni
+from ..shared.validators import validate_phone_senegal, validate_cni
 from .managers import CustomUserManager
 
 
