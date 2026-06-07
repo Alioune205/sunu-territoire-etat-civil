@@ -1,49 +1,94 @@
 import logging
-from typing import Callable
-from django.http import HttpRequest, HttpResponse
+from django.utils.deprecation import MiddlewareMixin
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import AuthenticationFailed
 
 from .models import AuditLog
 
-logger = logging.getLogger('errors')
+logger = logging.getLogger(__name__)
 
-class AuditMiddleware:
+
+class AuditLogMiddleware(MiddlewareMixin):
     """
-    Middleware d'audit pour tracer toutes les requêtes de modification.
-    Enregistre les opérations POST, PUT, PATCH, DELETE en base de données.
+    Middleware qui intercepte les requêtes de modification
+    (POST, PUT, PATCH, DELETE) et crée automatiquement un log d'audit.
     """
-    
-    def __init__(self, get_response: Callable):
-        self.get_response = get_response
 
-    def __call__(self, request: HttpRequest) -> HttpResponse:
-        # Exécution de la vue
-        response = self.get_response(request)
-        
-        # On ne trace que les requêtes modifiantes
-        if request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
-            self._log_action(request, response.status_code)
-            
-        return response
+    def process_response(self, request, response):
+        # On ne logue que les requêtes modifiantes qui ont réussi
+        if (
+            request.method in ['POST', 'PUT', 'PATCH', 'DELETE']
+            and 200 <= response.status_code < 300
+        ):
+            # Essayer de récupérer l'utilisateur via JWT
+            user = None
+            if (
+                hasattr(request, 'user')
+                and request.user.is_authenticated
+            ):
+                user = request.user
+            else:
+                try:
+                    jwt_auth = JWTAuthentication()
+                    auth_result = jwt_auth.authenticate(request)
+                    if auth_result:
+                        user = auth_result[0]
+                except AuthenticationFailed:
+                    pass
 
-    def _log_action(self, request: HttpRequest, status_code: int) -> None:
-        try:
-            # Récupération sécurisée de l'IP, même derrière un Proxy/Nginx
-            ip_address = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '')).split(',')[0].strip()
-            user = request.user if hasattr(request, 'user') and request.user.is_authenticated else None
+            # Mappage de la méthode HTTP à l'action
+            action_map = {
+                'POST': AuditLog.Action.CREATE,
+                'PUT': AuditLog.Action.UPDATE,
+                'PATCH': AuditLog.Action.UPDATE,
+                'DELETE': AuditLog.Action.DELETE,
+            }
+            action = action_map.get(request.method)
 
-            # Création de la trace en base de données
-            AuditLog.objects.create(
-                user=user,
-                action=request.method,
-                resource_type='API Request',
-                details={
-                    'path': request.path,
-                    'status_code': status_code,
-                    'method': request.method
-                },
-                ip_address=ip_address
+            # Identification du type de ressource par l'URL
+            path_parts = [
+                p for p in request.path.split('/') if p
+            ]
+            resource_type = (
+                path_parts[1] if len(path_parts) > 1
+                else 'unknown'
             )
-        except Exception as e:
-            # Sécurité critique : On n'empêche JAMAIS l'utilisateur de recevoir sa réponse 
-            # HTTP si le module d'audit tombe en panne.
-            logger.error(f"Erreur AuditLog Middleware: {str(e)}", exc_info=True)
+
+            # Exceptions / Routes spécifiques
+            if 'login' in request.path:
+                action = AuditLog.Action.LOGIN
+                resource_type = 'auth'
+            elif 'logout' in request.path:
+                action = AuditLog.Action.LOGOUT
+                resource_type = 'auth'
+            elif 'upload' in request.path:
+                action = AuditLog.Action.UPLOAD
+
+            # Extraction IP
+            ip_address = request.META.get(
+                'HTTP_X_FORWARDED_FOR'
+            )
+            if ip_address:
+                ip_address = ip_address.split(',')[0]
+            else:
+                ip_address = request.META.get('REMOTE_ADDR')
+
+            try:
+                AuditLog.log(
+                    user=user,
+                    action=action,
+                    resource_type=resource_type,
+                    details={
+                        'path': request.path,
+                        'method': request.method,
+                        'status_code': response.status_code
+                    },
+                    ip_address=ip_address
+                )
+            except Exception as e:
+                logger.error(
+                    f"Erreur lors de la création du log "
+                    f"d'audit : {e}"
+                )
+
+        return response

@@ -18,9 +18,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # CORE SETTINGS
 # ==============================================================================
 
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-dev-key-change-in-production')
+SECRET_KEY = config(
+    'SECRET_KEY',
+    default='django-insecure-dev-key-change-in-production'
+)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+ALLOWED_HOSTS = config(
+    'ALLOWED_HOSTS',
+    default='localhost,127.0.0.1',
+    cast=Csv()
+)
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
@@ -80,7 +87,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'apps.audit_logs.middleware.AuditMiddleware',
+    'apps.audit_logs.middleware.AuditLogMiddleware',
 ]
 
 # ==============================================================================
@@ -121,10 +128,23 @@ ASGI_APPLICATION = 'config.asgi.application'
 # ==============================================================================
 
 AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', 'OPTIONS': {'min_length': 8}},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+    {
+        'NAME': 'django.contrib.auth.password_validation'
+        '.UserAttributeSimilarityValidator'
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation'
+        '.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 8}
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation'
+        '.CommonPasswordValidator'
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation'
+        '.NumericPasswordValidator'
+    },
 ]
 
 # ==============================================================================
@@ -162,7 +182,9 @@ REST_FRAMEWORK = {
     ),
 
     # Pagination
-    'DEFAULT_PAGINATION_CLASS': 'apps.shared.pagination.StandardPagination',
+    'DEFAULT_PAGINATION_CLASS': (
+        'apps.shared.pagination.StandardPagination'
+    ),
     'PAGE_SIZE': 20,
 
     # Filtering
@@ -192,7 +214,9 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 
     # Exception handling
-    'EXCEPTION_HANDLER': 'apps.shared.exceptions.custom_exception_handler',
+    'EXCEPTION_HANDLER': (
+        'apps.shared.exceptions.custom_exception_handler'
+    ),
 
     # Date/Time formats
     'DATETIME_FORMAT': '%Y-%m-%dT%H:%M:%S%z',
@@ -205,10 +229,14 @@ REST_FRAMEWORK = {
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(
-        minutes=config('ACCESS_TOKEN_LIFETIME', default=30, cast=int)
+        minutes=config(
+            'ACCESS_TOKEN_LIFETIME', default=30, cast=int
+        )
     ),
     'REFRESH_TOKEN_LIFETIME': timedelta(
-        minutes=config('REFRESH_TOKEN_LIFETIME', default=1440, cast=int)
+        minutes=config(
+            'REFRESH_TOKEN_LIFETIME', default=1440, cast=int
+        )
     ),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
@@ -223,7 +251,10 @@ SIMPLE_JWT = {
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
 
-    'TOKEN_OBTAIN_SERIALIZER': 'apps.authentication.serializers.CustomTokenObtainPairSerializer',
+    'TOKEN_OBTAIN_SERIALIZER': (
+        'apps.authentication.serializers'
+        '.CustomTokenObtainPairSerializer'
+    ),
 }
 
 # ==============================================================================
@@ -234,8 +265,8 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'SUNU CIVIL API',
     'DESCRIPTION': (
         'API backend pour la plateforme GovTech SUNU CIVIL — '
-        'Digitalisation des démarches administratives et d\'état civil '
-        'pour les collectivités territoriales du Sénégal.'
+        "Digitalisation des démarches administratives et d'état "
+        'civil pour les collectivités territoriales du Sénégal.'
     ),
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
@@ -250,6 +281,8 @@ SPECTACULAR_SETTINGS = {
         {'name': 'Dossiers', 'description': 'Demandes administratives'},
         {'name': 'Documents', 'description': 'Pièces jointes et documents'},
         {'name': 'Audit Logs', 'description': 'Traçabilité des actions'},
+        {'name': 'Dashboard', 'description': 'Statistiques et KPIs'},
+        {'name': 'Notifications', 'description': 'Notifications'},
     ],
 }
 
@@ -269,14 +302,17 @@ MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10 MB
 # ==============================================================================
 
 LOGS_DIR = BASE_DIR / 'logs'
-LOGS_DIR.mkdir(exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
+            'format': (
+                '{levelname} {asctime} {module} '
+                '{process:d} {thread:d} {message}'
+            ),
             'style': '{',
         },
         'simple': {
@@ -286,6 +322,7 @@ LOGGING = {
     },
     'handlers': {
         'console': {
+            'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
@@ -304,12 +341,17 @@ LOGGING = {
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
+            'handlers': ['console', 'error_file'],
             'level': 'INFO',
             'propagate': True,
         },
         'system': {
             'handlers': ['console', 'system_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'apps': {
+            'handlers': ['console', 'error_file'],
             'level': 'INFO',
             'propagate': False,
         },
@@ -322,20 +364,23 @@ LOGGING = {
 }
 
 # ==============================================================================
-# FIREBASE CONFIGURATION
+# FIREBASE CONFIGURATION (DEV 1C)
 # ==============================================================================
 
 import firebase_admin
 from firebase_admin import credentials
 
-FIREBASE_CREDENTIALS_PATH = config('FIREBASE_CREDENTIALS_PATH', default='')
+FIREBASE_CREDENTIALS_PATH = config(
+    'FIREBASE_CREDENTIALS_PATH', default=''
+)
 if FIREBASE_CREDENTIALS_PATH:
-    # Resolve absolute path using BASE_DIR
     cred_path = BASE_DIR / FIREBASE_CREDENTIALS_PATH
     if cred_path.exists():
         cred = credentials.Certificate(str(cred_path))
-        # Ensure we don't initialize twice (e.g. during auto-reload)
         if not firebase_admin._apps:
             firebase_admin.initialize_app(cred)
     else:
-        print(f"Warning: Firebase credentials file not found at {cred_path}")
+        print(
+            f"Warning: Firebase credentials file "
+            f"not found at {cred_path}"
+        )
