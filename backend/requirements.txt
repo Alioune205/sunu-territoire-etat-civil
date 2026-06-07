@@ -29,3 +29,6 @@ gunicorn>=22.0,<23.0
 # PDF & QR Code (DEV 1B)
 reportlab>=4.0,<5.0
 qrcode>=7.4,<8.0
+
+# Firebase Cloud Messaging (DEV 1C)
+firebase-admin>=6.5.0,<7.0.0

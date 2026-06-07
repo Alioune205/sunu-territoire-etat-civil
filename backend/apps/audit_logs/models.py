@@ -22,6 +22,8 @@ class AuditLog(models.Model):
         STATUS_CHANGE = 'STATUS_CHANGE', 'Changement de statut'
         ROLE_CHANGE = 'ROLE_CHANGE', 'Changement de rôle'
         UPLOAD = 'UPLOAD', 'Téléversement'
+        DOWNLOAD = 'DOWNLOAD', 'Téléchargement'
+        ACCESS_DENIED = 'ACCESS_DENIED', 'Accès refusé'
 
     id = models.UUIDField(
         primary_key=True,
