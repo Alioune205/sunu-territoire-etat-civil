@@ -1,242 +1,310 @@
 """
-Views for System Monitoring (Super Admin only).
+System views — Health check, monitoring, métriques système et gestion des logs.
+
+Endpoints :
+    - GET /api/system/health/    → Public, utilisé par les outils de monitoring
+    - GET /api/system/metrics/   → Super admin uniquement, métriques avancées
+    - GET /api/system/logs/      → Super admin uniquement, journal système
 """
-import os
-import sys
-import shutil
+import time
+import logging
 import platform
-from datetime import datetime, timedelta
-from django.utils import timezone
+from datetime import timedelta
+
+import psutil
+from django.db import connection
 from django.conf import settings
-from django.db import connection, models
-from django.db.models import Count
+from django.utils import timezone
+from django.core.cache import cache
+from django.contrib.auth import get_user_model
 
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework import status
 
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
-from apps.shared.permissions import IsSuperAdmin
+from apps.shared.permissions import IsSuperAdmin, IsAdminStaff
 from apps.shared.responses import success_response, error_response
-from apps.audit_logs.models import AuditLog
+from apps.dossiers.models import Dossier
 
-import django
-
-# Record process startup time
-STARTUP_TIME = timezone.now()
+logger = logging.getLogger('system')
+User = get_user_model()
 
 
-class SystemHealthView(APIView):
+class HealthCheckView(APIView):
     """
     GET /api/system/health/
-    Retrieves system health status including CPU, memory, disk, DB connection, and uptime.
+    Retourne l'état de santé du backend : DB, disque, mémoire, latence API.
+    Accessible sans authentification (utilisé par Docker, Kubernetes, UptimeRobot, etc.).
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=['System'],
+        summary='Vérification de santé du système',
+        description=(
+            'Retourne le statut de connexion à la base de données, '
+            'l\'espace disque disponible, la mémoire RAM, '
+            'et la latence de réponse API.'
+        ),
+    )
+    def get(self, request, *args, **kwargs):
+        start_time = time.monotonic()
+
+        # ── Database check ──
+        db_status = 'ok'
+        db_latency_ms = None
+        try:
+            db_start = time.monotonic()
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT 1')
+            db_latency_ms = round((time.monotonic() - db_start) * 1000, 2)
+        except Exception as e:
+            db_status = f'error: {str(e)}'
+            logger.error(f'[HealthCheck] Database connection failed: {e}')
+
+        # ── Disk usage ──
+        try:
+            disk = psutil.disk_usage('/')
+            disk_status = {
+                'total_gb': round(disk.total / (1024 ** 3), 2),
+                'used_gb': round(disk.used / (1024 ** 3), 2),
+                'free_gb': round(disk.free / (1024 ** 3), 2),
+                'percent_used': disk.percent,
+            }
+        except Exception as e:
+            disk_status = {'error': str(e)}
+
+        # ── Memory usage ──
+        try:
+            mem = psutil.virtual_memory()
+            memory_status = {
+                'total_gb': round(mem.total / (1024 ** 3), 2),
+                'available_gb': round(mem.available / (1024 ** 3), 2),
+                'percent_used': mem.percent,
+            }
+        except Exception as e:
+            memory_status = {'error': str(e)}
+
+        # ── CPU usage ──
+        try:
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+        except Exception:
+            cpu_percent = None
+
+        # ── Cache check ──
+        cache_status = 'ok'
+        try:
+            cache.set('_health_check', True, 10)
+            if not cache.get('_health_check'):
+                cache_status = 'error: could not read back'
+        except Exception as e:
+            cache_status = f'error: {str(e)}'
+
+        # ── API latency ──
+        api_latency_ms = round((time.monotonic() - start_time) * 1000, 2)
+
+        # ── Overall status ──
+        is_healthy = (
+            db_status == 'ok'
+            and cache_status == 'ok'
+            and disk_status.get('percent_used', 100) < 95
+            and memory_status.get('percent_used', 100) < 95
+        )
+
+        http_status = status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+
+        # Masquage des données sensibles pour les accès publics (Audit Fix)
+        is_admin = hasattr(request.user, 'role') and request.user.role in ['civil_admin', 'super_admin']
+        if not request.user.is_authenticated or not is_admin:
+            disk_status = {'status': 'ok'} if disk_status.get('percent_used', 100) < 95 else {'status': 'warning'}
+            memory_status = {'status': 'ok'} if memory_status.get('percent_used', 100) < 95 else {'status': 'warning'}
+            cpu_percent = 'hidden'
+
+        return Response({
+            'status': 'healthy' if is_healthy else 'unhealthy',
+            'timestamp': timezone.now().isoformat(),
+            'version': getattr(settings, 'APP_VERSION', '1.0.0'),
+            'environment': 'production' if not settings.DEBUG else 'development',
+            'checks': {
+                'database': {
+                    'status': db_status,
+                    'latency_ms': db_latency_ms,
+                },
+                'cache': {
+                    'status': cache_status,
+                },
+                'disk': disk_status,
+                'memory': memory_status,
+                'cpu_percent': cpu_percent,
+            },
+            'api_latency_ms': api_latency_ms,
+        }, status=http_status)
+
+
+class SystemMetricsView(APIView):
+    """
+    GET /api/system/metrics/
+    Métriques avancées du système : nombre d'utilisateurs, dossiers,
+    informations serveur. Réservé aux super_admins.
     """
     permission_classes = [IsAuthenticated, IsSuperAdmin]
 
     @extend_schema(
-        tags=['System Monitoring'],
-        summary='Obtenir l\'état de santé du système et des ressources',
+        tags=['System'],
+        summary='Métriques système avancées',
+        description='Informations détaillées sur le serveur, la base de données et les volumes.',
     )
     def get(self, request):
-        # 1. DB Health
-        db_status = "healthy"
-        db_response_time_ms = 0
-        try:
-            start_db = datetime.now()
-            # Perform a simple raw query to check connection
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT 1;")
-            db_response_time_ms = round((datetime.now() - start_db).total_seconds() * 1000, 2)
-        except Exception as e:
-            db_status = f"unhealthy: {str(e)}"
+        # ── Cache des métriques (lourd en calcul) ──
+        cache_key = 'system:metrics'
+        cached = cache.get(cache_key)
+        if cached:
+            return success_response(data=cached)
 
-        # 2. Disk Usage
-        try:
-            total, used, free = shutil.disk_usage(settings.BASE_DIR)
-            disk_total_gb = round(total / (1024**3), 2)
-            disk_used_gb = round(used / (1024**3), 2)
-            disk_free_gb = round(free / (1024**3), 2)
-            disk_used_percent = round((used / total) * 100.0, 2)
-        except Exception:
-            disk_total_gb = disk_used_gb = disk_free_gb = disk_used_percent = None
+        # ── Application metrics ──
+        total_users = User.objects.count()
+        active_users = User.objects.filter(is_active=True).count()
+        total_citizens = User.objects.filter(role='citizen').count()
+        total_agents = User.objects.exclude(role='citizen').count()
+        total_dossiers = Dossier.objects.count()
+        pending_dossiers = Dossier.objects.filter(
+            status__in=[Dossier.Status.SUBMITTED, Dossier.Status.IN_REVIEW]
+        ).count()
 
-        # 3. CPU & Memory Usage
-        cpu_percent = None
-        ram_total_gb = ram_used_gb = ram_free_gb = ram_percent = None
-        try:
-            import psutil
-            cpu_percent = psutil.cpu_percent(interval=None)
-            mem = psutil.virtual_memory()
-            ram_total_gb = round(mem.total / (1024**3), 2)
-            ram_used_gb = round(mem.used / (1024**3), 2)
-            ram_free_gb = round(mem.available / (1024**3), 2)
-            ram_percent = mem.percent
-        except ImportError:
-            pass
+        # ── Dossiers created in last 24h / 7 days / 30 days ──
+        now = timezone.now()
+        dossiers_24h = Dossier.objects.filter(created_at__gte=now - timedelta(hours=24)).count()
+        dossiers_7d = Dossier.objects.filter(created_at__gte=now - timedelta(days=7)).count()
+        dossiers_30d = Dossier.objects.filter(created_at__gte=now - timedelta(days=30)).count()
 
-        # 4. Uptime & Platform Info
-        uptime_seconds = int((timezone.now() - STARTUP_TIME).total_seconds())
-        uptime_str = str(timedelta(seconds=uptime_seconds))
-
-        data = {
-            'status': 'healthy' if db_status == 'healthy' else 'degraded',
-            'timestamp': timezone.now(),
-            'database': {
-                'status': db_status,
-                'response_time_ms': db_response_time_ms,
-                'engine': connection.vendor
-            },
-            'resources': {
-                'cpu_percent': cpu_percent,
-                'ram': {
-                    'total_gb': ram_total_gb,
-                    'used_gb': ram_used_gb,
-                    'free_gb': ram_free_gb,
-                    'percent': ram_percent
-                },
-                'disk': {
-                    'total_gb': disk_total_gb,
-                    'used_gb': disk_used_gb,
-                    'free_gb': disk_free_gb,
-                    'percent': disk_used_percent
-                }
-            },
-            'environment': {
-                'python_version': sys.version.split()[0],
-                'django_version': django.get_version(),
-                'os': f"{platform.system()} {platform.release()}",
-                'uptime': uptime_str,
-                'uptime_seconds': uptime_seconds
-            }
+        # ── Server info (sans exposer de données sensibles) ──
+        server_info = {
+            'os': platform.system(),
+            'python_version': platform.python_version(),
+            'architecture': platform.machine(),
+            'django_debug': settings.DEBUG,
         }
 
-        return success_response(data=data, message="Diagnostic système récupéré.")
+        # ── Database info ──
+        db_info = {}
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT version()")
+                row = cursor.fetchone()
+                db_info['version'] = row[0] if row else 'unknown'
+                cursor.execute(
+                    "SELECT pg_size_pretty(pg_database_size(current_database()))"
+                )
+                row = cursor.fetchone()
+                db_info['database_size'] = row[0] if row else 'unknown'
+        except Exception as e:
+            db_info['error'] = str(e)
+
+        # ── Process info ──
+        try:
+            process = psutil.Process()
+            process_info = {
+                'pid': process.pid,
+                'memory_mb': round(process.memory_info().rss / (1024 ** 2), 2),
+                'cpu_percent': process.cpu_percent(),
+                'threads': process.num_threads(),
+                'uptime_seconds': round(time.time() - process.create_time()),
+            }
+        except Exception as e:
+            process_info = {'error': str(e)}
+
+        data = {
+            'application': {
+                'total_users': total_users,
+                'active_users': active_users,
+                'total_citizens': total_citizens,
+                'total_agents': total_agents,
+                'total_dossiers': total_dossiers,
+                'pending_dossiers': pending_dossiers,
+                'dossiers_last_24h': dossiers_24h,
+                'dossiers_last_7d': dossiers_7d,
+                'dossiers_last_30d': dossiers_30d,
+            },
+            'server': server_info,
+            'database': db_info,
+            'process': process_info,
+        }
+
+        # Cache 60 secondes (les métriques n'ont pas besoin d'être temps réel)
+        cache.set(cache_key, data, 60)
+        return success_response(data=data)
 
 
 class SystemLogsView(APIView):
     """
     GET /api/system/logs/
-    Reads the backend application log file (Super Admin only).
+    Lire les dernières lignes du fichier system.log. Réservé aux super_admins.
     """
     permission_classes = [IsAuthenticated, IsSuperAdmin]
 
     @extend_schema(
-        tags=['System Monitoring'],
-        summary='Consulter les fichiers de logs système',
+        tags=['System'],
+        summary='Dernières entrées du journal système',
         parameters=[
-            OpenApiParameter('lines', OpenApiTypes.INT, description='Nombre de lignes à retourner', default=100),
-            OpenApiParameter('level', OpenApiTypes.STR, description='Filtrer par niveau (INFO, WARNING, ERROR)'),
-        ]
+            OpenApiParameter(
+                name='lines',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Nombre de lignes à retourner (défaut: 50, max: 500).',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='level',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filtrer par niveau de log (INFO, WARNING, ERROR).',
+                required=False,
+            ),
+        ],
     )
     def get(self, request):
-        # 1. Determine log file path from settings, or fall back to base logs folder
-        log_dir = settings.BASE_DIR / 'logs'
-        log_file_path = log_dir / 'app.log'
-
-        # Check default paths if not exists
-        if not log_file_path.exists():
-            # Create the logs folder and file to prevent file-not-found crashes
-            os.makedirs(log_dir, exist_ok=True)
-            with open(log_file_path, 'w', encoding='utf-8') as f:
-                f.write(f"[{timezone.now().isoformat()}] INFO system Log file initialized.\n")
-
-        lines_to_read = request.query_params.get('lines', 100)
         try:
-            lines_to_read = min(int(lines_to_read), 1000)  # cap at 1000 lines
-        except ValueError:
-            lines_to_read = 100
+            num_lines = int(request.query_params.get('lines', 50))
+            num_lines = min(max(num_lines, 1), 500)
+        except (ValueError, TypeError):
+            num_lines = 50
 
-        level_filter = request.query_params.get('level')
-        if level_filter:
-            level_filter = level_filter.upper()
+        level_filter = request.query_params.get('level', '').upper()
+        valid_levels = {'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'DEBUG'}
 
-        log_lines = []
+        log_file = settings.BASE_DIR / 'logs' / 'system.log'
+
+        if not log_file.exists():
+            return success_response(
+                data={'lines': [], 'total_lines': 0, 'showing': 0},
+                message='Aucun log disponible.',
+            )
+
         try:
-            # Read file in reverse order or read all and take last N lines
-            with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-                
-            # Filter by level if specified
-            if level_filter:
-                lines = [line for line in lines if level_filter in line]
+            with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
+                all_lines = f.readlines()
 
-            # Slice last N lines
-            lines = lines[-lines_to_read:]
-            log_lines = [line.strip() for line in lines]
+            # Filtrage optionnel par niveau
+            if level_filter and level_filter in valid_levels:
+                filtered = [line for line in all_lines if level_filter in line]
+            else:
+                filtered = all_lines
+
+            tail = filtered[-num_lines:]
+
+            return success_response(data={
+                'lines': [line.strip() for line in tail],
+                'total_lines': len(all_lines),
+                'showing': len(tail),
+                'filter_applied': level_filter if level_filter in valid_levels else None,
+            })
         except Exception as e:
-            return error_response(message=f"Impossible de lire le fichier de logs: {str(e)}")
-
-        data = {
-            'log_file': str(log_file_path),
-            'total_lines': len(log_lines),
-            'lines': log_lines
-        }
-        return success_response(data=data, message="Logs récupérés avec succès.")
-
-
-class SystemActivityView(APIView):
-    """
-    GET /api/system/activity/
-    Aggregates AuditLog data to monitor backend actions and events.
-    """
-    permission_classes = [IsAuthenticated, IsSuperAdmin]
-
-    @extend_schema(
-        tags=['System Monitoring'],
-        summary='Obtenir l\'analyse d\'activité système',
-    )
-    def get(self, request):
-        logs = AuditLog.objects.all()
-
-        # 1. General counts
-        total_logs = logs.count()
-
-        # 2. Action distribution
-        action_counts = logs.values('action').annotate(count=Count('id')).order_by('-count')
-        action_labels = dict(AuditLog.Action.choices)
-        actions = [{
-            'action': item['action'],
-            'label': action_labels.get(item['action'], item['action']),
-            'count': item['count']
-        } for item in action_counts]
-
-        # 3. Resource type distribution
-        resource_counts = logs.values('resource_type').annotate(count=Count('id')).order_by('-count')[:10]
-        resources = [{
-            'resource_type': item['resource_type'],
-            'count': item['count']
-        } for item in resource_counts]
-
-        # 4. Activity trends (Last 7 days)
-        seven_days_ago = timezone.now().date() - timedelta(days=7)
-        from django.db.models.functions import TruncDate
-        trend_stats = logs.filter(created_at__date__gte=seven_days_ago)\
-                          .annotate(date=TruncDate('created_at'))\
-                          .values('date')\
-                          .annotate(count=Count('id'))\
-                          .order_by('date')
-        trends = [{'date': item['date'], 'count': item['count']} for item in trend_stats if item['date']]
-
-        # 5. Top active users
-        user_stats = logs.values('user__id', 'user__email', 'user__first_name', 'user__last_name')\
-                         .annotate(count=Count('id'))\
-                         .order_by('-count')[:5]
-        active_users = []
-        for item in user_stats:
-            if item['user__id']:
-                name = f"{item['user__first_name']} {item['user__last_name']}".strip()
-                active_users.append({
-                    'user_id': item['user__id'],
-                    'email': item['user__email'],
-                    'name': name or item['user__email'],
-                    'action_count': item['count']
-                })
-
-        data = {
-            'total_actions': total_logs,
-            'action_distribution': actions,
-            'resource_distribution': resources,
-            'weekly_trend': trends,
-            'top_active_users': active_users
-        }
-        return success_response(data=data, message="Analyse d'activité système réussie.")
+            logger.error(f'[SystemLogs] Failed to read log file: {e}')
+            return error_response(
+                message='Erreur de lecture du fichier log.',
+                status_code=500,
+            )

@@ -33,3 +33,6 @@ qrcode>=7.4,<8.0
 
 # Firebase Cloud Messaging (DEV 1C)
 firebase-admin>=6.5.0,<7.0.0
+
+# System Monitoring
+psutil>=5.9.0,<6.0.0

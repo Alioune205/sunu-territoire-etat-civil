@@ -1,119 +1,82 @@
 """
-Dashboard serializers — structured response schemas for all analytics endpoints.
-DEV 2A: Pape Alioune Sène
-
-Chemin : backend/apps/dashboard/serializers.py
-Rôle   : Définit la forme exacte de chaque réponse JSON du dashboard.
-Impact : Aucun effet sur les modèles existants. Read-only uniquement.
+Dashboard serializers — Statistiques et rapports pour le Dashboard administratif.
 """
 from rest_framework import serializers
+from apps.dossiers.models import Dossier
+from apps.users.models import User
 
 
-# ---------------------------------------------------------------------------
-# /api/dashboard/stats/
-# ---------------------------------------------------------------------------
-
-class DossierStatusCountSerializer(serializers.Serializer):
-    """Répartition des dossiers par statut."""
+class DossierCountByStatusSerializer(serializers.Serializer):
+    """Nombre de dossiers par statut."""
     status = serializers.CharField()
     status_display = serializers.CharField()
     count = serializers.IntegerField()
 
 
-class DossierTypeCountSerializer(serializers.Serializer):
-    """Répartition des dossiers par type d'acte."""
+class DossierCountByTypeSerializer(serializers.Serializer):
+    """Nombre de dossiers par type."""
     type = serializers.CharField()
     type_display = serializers.CharField()
     count = serializers.IntegerField()
 
 
-class DashboardStatsSerializer(serializers.Serializer):
-    """Statistiques globales — /api/dashboard/stats/"""
-    total_dossiers = serializers.IntegerField()
-    total_users = serializers.IntegerField()
-    total_communes = serializers.IntegerField()
-    by_status = DossierStatusCountSerializer(many=True)
-    by_type = DossierTypeCountSerializer(many=True)
+class DossierCountByCommuneSerializer(serializers.Serializer):
+    """Nombre de dossiers par commune."""
+    commune__name = serializers.CharField()
+    commune__region = serializers.CharField()
+    count = serializers.IntegerField()
 
-
-# ---------------------------------------------------------------------------
-# /api/dashboard/kpis/
-# ---------------------------------------------------------------------------
-
-class CommuneProcessingKPISerializer(serializers.Serializer):
-    """KPI de traitement par commune."""
-    commune_id = serializers.UUIDField()
-    commune_name = serializers.CharField()
-    avg_processing_hours = serializers.FloatField(allow_null=True)
-    total_dossiers = serializers.IntegerField()
-    approved_count = serializers.IntegerField()
-    rejected_count = serializers.IntegerField()
-    rejection_rate_percent = serializers.FloatField()
-
-
-class AgentProductivitySerializer(serializers.Serializer):
-    """Productivité par agent."""
-    agent_id = serializers.UUIDField()
-    agent_name = serializers.CharField()
-    commune_name = serializers.CharField(allow_null=True)
-    dossiers_handled = serializers.IntegerField()
-    approved = serializers.IntegerField()
-    rejected = serializers.IntegerField()
-    avg_processing_hours = serializers.FloatField(allow_null=True)
-
-
-class DashboardKPIsSerializer(serializers.Serializer):
-    """KPIs — /api/dashboard/kpis/"""
-    global_rejection_rate_percent = serializers.FloatField()
-    global_avg_processing_hours = serializers.FloatField(allow_null=True)
-    pending_over_48h = serializers.IntegerField(help_text="Dossiers en attente depuis plus de 48h")
-    by_commune = CommuneProcessingKPISerializer(many=True)
-    agent_productivity = AgentProductivitySerializer(many=True)
-
-
-# ---------------------------------------------------------------------------
-# /api/dashboard/charts/
-# ---------------------------------------------------------------------------
 
 class DailyVolumeSerializer(serializers.Serializer):
-    """Volume de dépôts par jour."""
+    """Volume de dossiers par jour."""
     date = serializers.DateField()
     count = serializers.IntegerField()
 
 
-class HourlyActivitySerializer(serializers.Serializer):
-    """Activité par heure de la journée."""
-    hour = serializers.IntegerField()
-    count = serializers.IntegerField()
+class AgentPerformanceSerializer(serializers.Serializer):
+    """Performance d'un agent (dossiers traités, délai moyen)."""
+    agent_id = serializers.UUIDField()
+    agent_name = serializers.CharField()
+    agent_role = serializers.CharField()
+    total_assigned = serializers.IntegerField()
+    total_completed = serializers.IntegerField()
+    total_rejected = serializers.IntegerField()
+    avg_processing_hours = serializers.FloatField(allow_null=True)
 
 
-class WeeklyVolumeSerializer(serializers.Serializer):
-    """Volume de dépôts par semaine."""
-    week = serializers.CharField()   # ex: "2026-W22"
-    count = serializers.IntegerField()
+class OverviewStatsSerializer(serializers.Serializer):
+    """Vue d'ensemble des statistiques globales."""
+    total_dossiers = serializers.IntegerField()
+    total_pending = serializers.IntegerField()
+    total_in_review = serializers.IntegerField()
+    total_approved = serializers.IntegerField()
+    total_rejected = serializers.IntegerField()
+    total_completed = serializers.IntegerField()
+    total_citizens = serializers.IntegerField()
+    total_agents = serializers.IntegerField()
+    avg_processing_hours = serializers.FloatField(allow_null=True)
+    completion_rate = serializers.FloatField()
 
 
-class DashboardChartsSerializer(serializers.Serializer):
-    """Données graphiques — /api/dashboard/charts/"""
-    daily_volume = DailyVolumeSerializer(many=True)
-    weekly_volume = WeeklyVolumeSerializer(many=True)
-    hourly_activity = HourlyActivitySerializer(many=True)
-
-
-# ---------------------------------------------------------------------------
-# /api/dashboard/activity/  &  /api/dashboard/recent-actions/
-# ---------------------------------------------------------------------------
-
-class RecentActivitySerializer(serializers.Serializer):
-    """Entrée de log d'activité récente."""
+class RecentDossierSerializer(serializers.Serializer):
+    """Dossier récent simplifié pour le dashboard."""
     id = serializers.UUIDField()
-    user_name = serializers.CharField(allow_null=True)
-    user_email = serializers.CharField(allow_null=True)
-    user_role = serializers.CharField(allow_null=True)
-    action = serializers.CharField()
-    action_display = serializers.CharField()
-    resource_type = serializers.CharField()
-    resource_id = serializers.UUIDField(allow_null=True)
-    details = serializers.DictField()
-    ip_address = serializers.CharField(allow_null=True)
+    reference = serializers.CharField()
+    type = serializers.CharField()
+    type_display = serializers.CharField()
+    status = serializers.CharField()
+    status_display = serializers.CharField()
+    citizen_name = serializers.CharField()
+    commune_name = serializers.CharField()
     created_at = serializers.DateTimeField()
+    submitted_at = serializers.DateTimeField(allow_null=True)
+
+
+class ProcessingDelaySerializer(serializers.Serializer):
+    """Délais de traitement par type de dossier."""
+    type = serializers.CharField()
+    type_display = serializers.CharField()
+    avg_hours = serializers.FloatField(allow_null=True)
+    min_hours = serializers.FloatField(allow_null=True)
+    max_hours = serializers.FloatField(allow_null=True)
+    total_processed = serializers.IntegerField()

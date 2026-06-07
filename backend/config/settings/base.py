@@ -71,6 +71,8 @@ LOCAL_APPS = [
     'apps.ai',
     'apps.dashboard',
     'apps.system',
+    'apps.integrations',
+    'apps.services',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -329,8 +331,10 @@ LOGGING = {
         },
         'system_file': {
             'level': 'INFO',
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': LOGS_DIR / 'system.log',
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 5,
             'formatter': 'verbose',
         },
         'error_file': {
@@ -342,7 +346,7 @@ LOGGING = {
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'error_file'],
+            'handlers': ['console', 'system_file'],
             'level': 'INFO',
             'propagate': True,
         },

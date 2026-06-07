@@ -1,43 +1,64 @@
 """
-Base class for system integrations.
+Intégrations mocks — Base abstraite pour tous les clients d'intégration.
+
+Architecture :
+    - Chaque service externe (ANEC, Paiement) hérite de `BaseMockClient`
+    - Interface standardisée : ping(), log_call(), health_status()
+    - En production, swap transparent vers les vrais SDK/API
 """
+import time
+import logging
 from abc import ABC, abstractmethod
 
+logger = logging.getLogger('system')
 
-class BaseIntegrationService(ABC):
+
+class BaseMockClient(ABC):
     """
-    Abstract Base Class outlining the integration API structure for external services.
+    Classe de base pour toutes les intégrations (mocks et production).
+
+    Garantit :
+        - Une interface standardisée pour les appels externes
+        - Un logging structuré de chaque appel
+        - Un health check utilisable par le monitoring
     """
 
-    def __init__(self, api_url=None, api_key=None):
-        self.api_url = api_url
-        self.api_key = api_key
+    def __init__(self, service_name):
+        self.service_name = service_name
+        self.logger = logger
+
+    def log_call(self, endpoint, payload):
+        """Log structuré de chaque appel externe."""
+        self.logger.info(
+            f'[{self.service_name}] Appel → {endpoint} | Payload: {payload}'
+        )
 
     @abstractmethod
-    def authenticate(self):
-        """
-        Authenticates with the external API endpoint.
-        Should raise connection/auth errors on failure.
-        """
+    def ping(self):
+        """Vérifie si le service externe est disponible."""
         pass
 
-    @abstractmethod
-    def fetch_citizen_data(self, cni_number):
+    def health_status(self):
         """
-        Fetches official identity information using a National CNI number.
+        Retourne le statut de santé du service avec mesure de latence.
+        Utilisé par le health check global du système.
         """
-        pass
-
-    @abstractmethod
-    def verify_civil_status_record(self, record_id, record_type):
-        """
-        Verifies the authenticity of a birth/marriage/death certificate record.
-        """
-        pass
-
-    @abstractmethod
-    def transmit_dossier(self, dossier_data):
-        """
-        Transmits completed dossier details to government archival vaults.
-        """
-        pass
+        try:
+            start = time.monotonic()
+            result = self.ping()
+            latency_ms = round((time.monotonic() - start) * 1000, 2)
+            return {
+                'service': self.service_name,
+                'status': 'up',
+                'latency_ms': latency_ms,
+                'details': result,
+            }
+        except Exception as e:
+            self.logger.error(
+                f'[{self.service_name}] Health check failed: {e}'
+            )
+            return {
+                'service': self.service_name,
+                'status': 'down',
+                'error': str(e),
+            }
