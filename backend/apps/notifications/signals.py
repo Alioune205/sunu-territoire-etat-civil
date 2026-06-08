@@ -45,6 +45,22 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
                 notification_type=Notification.TypeChoices.SUCCESS,
                 data={'dossier_id': str(instance.id)}
             )
+            # Notifier les agents de la commune
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            agents = User.objects.filter(
+                commune=instance.commune,
+                role=User.Role.RECEPTION_AGENT,
+                is_active=True
+            )
+            if agents.exists():
+                FCMService.send_bulk_notification(
+                    users=agents,
+                    title="Nouveau dossier soumis à traiter",
+                    body=f"Le dossier {instance.reference} est en attente dans la file commune.",
+                    notification_type=Notification.TypeChoices.INFO,
+                    data={'dossier_id': str(instance.id)}
+                )
         return
 
     old_status = getattr(instance, '_old_status', None)
@@ -63,6 +79,22 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             notification_type=Notification.TypeChoices.SUCCESS,
             data={'dossier_id': str(instance.id)}
         )
+        # Notifier les agents de la commune
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        agents = User.objects.filter(
+            commune=instance.commune,
+            role=User.Role.RECEPTION_AGENT,
+            is_active=True
+        )
+        if agents.exists():
+            FCMService.send_bulk_notification(
+                users=agents,
+                title="Nouveau dossier soumis à traiter",
+                body=f"Le dossier {instance.reference} est en attente dans la file commune.",
+                notification_type=Notification.TypeChoices.INFO,
+                data={'dossier_id': str(instance.id)}
+            )
 
     elif instance.status == Dossier.Status.IN_REVIEW and instance.assigned_agent:
         # Notifier l'agent assigné
