@@ -1,6 +1,5 @@
 """
 Notifications models.
-# TODO: DEV 2 — Implement Notification models here
 """
 from django.db import models
 from django.conf import settings
