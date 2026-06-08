@@ -37,5 +37,9 @@ class Command(BaseCommand):
         self.stdout.write("- Lancement du nettoyage des fichiers temporaires...")
         call_command('cleanup_temp_files')
 
+        # 6. Sauvegarde automatique de la base de données
+        self.stdout.write("- Lancement de la sauvegarde de la base de données...")
+        call_command('backup_db')
+
         logger.info("Fin de l'exécution des tâches planifiées système.")
         self.stdout.write(self.style.SUCCESS("Toutes les tâches planifiées ont été exécutées avec succès."))

@@ -58,8 +58,10 @@ class FCMService:
             if not devices.exists():
                 logger.info(
                     f'[FCM] Aucun appareil actif pour l\'utilisateur {user.id}. '
-                    f'Notification #{notification.id} sauvegardée en base uniquement.'
+                    f'Notification #{notification.id} sauvegardée en base.'
                 )
+                # Fallback: Send SMS or Email
+                FCMService._send_fallback_notification(user, title, body)
                 return notification
 
             tokens = list(devices.values_list('registration_id', flat=True))
@@ -106,6 +108,19 @@ class FCMService:
             f'[MOCK FCM] Envoi simulé de "{title}" à {len(tokens)} appareil(s). '
             f'Data: {data}'
         )
+
+    @staticmethod
+    def _send_fallback_notification(user, title, body):
+        """
+        Fallback method if the user has no active FCM devices.
+        Attempts to send an SMS if phone is available, otherwise an Email.
+        """
+        if getattr(user, 'phone', None):
+            logger.info(f'[MOCK SMS] Envoi de SMS à {user.phone} : "{title}"')
+        elif getattr(user, 'email', None):
+            logger.info(f'[MOCK EMAIL] Envoi d\'email à {user.email} : "{title}"')
+        else:
+            logger.warning(f'[FALLBACK] Impossible de notifier l\'utilisateur {user.id} : aucun contact valide.')
 
     @staticmethod
     def send_bulk_notification(users, title, body, notification_type=Notification.TypeChoices.INFO, data=None):
