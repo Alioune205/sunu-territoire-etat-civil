@@ -1,5 +1,6 @@
 import logging
 from django.core.management.base import BaseCommand
+from django.core.management import call_command
 from apps.notifications.tasks import (
     send_stale_dossier_alerts,
     send_daily_summary_to_admins,
@@ -31,6 +32,10 @@ class Command(BaseCommand):
         # 4. Nettoyage des anciennes notifications lues
         deleted_notifications = cleanup_old_notifications(days=90)
         self.stdout.write(f"- Anciennes notifications supprimées: {deleted_notifications}")
+
+        # 5. Nettoyage des fichiers temporaires
+        self.stdout.write("- Lancement du nettoyage des fichiers temporaires...")
+        call_command('cleanup_temp_files')
 
         logger.info("Fin de l'exécution des tâches planifiées système.")
         self.stdout.write(self.style.SUCCESS("Toutes les tâches planifiées ont été exécutées avec succès."))
