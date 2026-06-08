@@ -63,6 +63,9 @@ LOCAL_APPS = [
     'apps.qr',
     'apps.ai',
     'apps.dashboard',
+    'apps.system',
+    'apps.integrations',
+    'apps.services',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -80,6 +83,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.system.middleware.PerformanceMonitoringMiddleware',
 ]
 
 # ==============================================================================
@@ -262,3 +266,56 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
 # Allowed file types for document uploads
 ALLOWED_DOCUMENT_TYPES = ['pdf', 'jpg', 'jpeg', 'png']
 MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10 MB
+
+# ==============================================================================
+# LOGGING
+# ==============================================================================
+import os
+LOGS_DIR = BASE_DIR / 'logs'
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'system_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'system.log',
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+        'error_file': {
+            'level': 'ERROR',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'error.log',
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'system_file', 'error_file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'system': {
+            'handlers': ['console', 'system_file', 'error_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

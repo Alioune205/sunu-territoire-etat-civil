@@ -35,6 +35,8 @@ urlpatterns = [
     path('api/qr/', include('apps.qr.urls')),
     path('api/ai/', include('apps.ai.urls')),
     path('api/dashboard/', include('apps.dashboard.urls')),
+    path('api/system/', include('apps.system.urls')),
+    path('api/services/', include('apps.services.urls')),
 ]
 
 # Serve media files in development

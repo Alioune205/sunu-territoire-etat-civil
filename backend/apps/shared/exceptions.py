@@ -27,6 +27,11 @@ def custom_exception_handler(exc, context):
             error_data['errors'] = None
 
         response.data = error_data
+    else:
+        # Log unhandled exceptions
+        import logging
+        logger = logging.getLogger('system')
+        logger.error(f'Unhandled Exception: {str(exc)}', exc_info=True)
 
     return response
 
