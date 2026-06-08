@@ -65,7 +65,7 @@ class DashboardStatsView(APIView):
                 'commune__name'
             ).annotate(
                 count=Count('id')
-            ).order_by('-count')
+            ).order_by('-count')[:5]  # Top 5
         ]
 
         document_type_counts = {
@@ -74,6 +74,28 @@ class DashboardStatsView(APIView):
                 'file_type'
             ).annotate(count=Count('id'))
         }
+
+        dossiers_by_type = {
+            item['type']: item['count']
+            for item in Dossier.objects.values(
+                'type'
+            ).annotate(count=Count('id'))
+        }
+
+        top_agents = [
+            {
+                'agent': item['assigned_agent__first_name'] + ' ' + item['assigned_agent__last_name'] if item['assigned_agent__first_name'] else item['assigned_agent__email'],
+                'dossiers_traites': item['count']
+            }
+            for item in Dossier.objects.exclude(
+                assigned_agent__isnull=True
+            ).values(
+                'assigned_agent__first_name', 'assigned_agent__last_name', 'assigned_agent__email'
+            ).annotate(count=Count('id')).order_by('-count')[:3]  # Top 3
+        ]
+
+        approved_count = Dossier.objects.filter(status=Dossier.Status.APPROVED).count()
+        taux_approbation = round((approved_count / total_dossiers * 100), 2) if total_dossiers > 0 else 0.0
 
         from datetime import timedelta
         
@@ -115,6 +137,9 @@ class DashboardStatsView(APIView):
             'status_counts': status_counts,
             'dossiers_by_commune': commune_counts,
             'documents_by_type': document_type_counts,
+            'dossiers_by_type': dossiers_by_type,
+            'top_agents': top_agents,
+            'taux_approbation': taux_approbation,
             'average_review_time': format_duration(
                 timedelta(seconds=average_review_time)
             ),
@@ -244,3 +269,66 @@ class ActivityStatsView(APIView):
             "weekly": list(weekly),
             "monthly": list(monthly)
         })
+
+import csv
+from django.http import HttpResponse
+
+class ExportCSVView(APIView):
+    """API for exporting dossiers as CSV."""
+    permission_classes = [IsAuthenticated, IsAdminStaff]
+
+    @extend_schema(
+        tags=['Dashboard'],
+        summary='Exporter les dossiers en CSV',
+        parameters=[
+            {
+                'name': 'date_debut',
+                'in': 'query',
+                'required': False,
+                'description': 'Format YYYY-MM-DD',
+                'schema': {'type': 'string', 'format': 'date'}
+            },
+            {
+                'name': 'date_fin',
+                'in': 'query',
+                'required': False,
+                'description': 'Format YYYY-MM-DD',
+                'schema': {'type': 'string', 'format': 'date'}
+            }
+        ]
+    )
+    def get(self, request):
+        date_debut = request.query_params.get('date_debut')
+        date_fin = request.query_params.get('date_fin')
+
+        queryset = Dossier.objects.select_related('citizen', 'commune').all()
+
+        if date_debut:
+            queryset = queryset.filter(submitted_at__date__gte=date_debut)
+        if date_fin:
+            queryset = queryset.filter(submitted_at__date__lte=date_fin)
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="export.csv"'
+
+        writer = csv.DictWriter(response, fieldnames=[
+            'reference', 'type', 'statut', 'citoyen', 'commune', 'date_soumission', 'date_completion'
+        ])
+        writer.writeheader()
+
+        for dossier in queryset:
+            citoyen_name = dossier.citizen.email
+            if hasattr(dossier.citizen, 'first_name') and dossier.citizen.first_name:
+                citoyen_name = f"{dossier.citizen.first_name} {dossier.citizen.last_name}"
+
+            writer.writerow({
+                'reference': dossier.reference,
+                'type': dossier.get_type_display(),
+                'statut': dossier.get_status_display(),
+                'citoyen': citoyen_name,
+                'commune': dossier.commune.name if dossier.commune else '',
+                'date_soumission': dossier.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if dossier.submitted_at else '',
+                'date_completion': dossier.completed_at.strftime('%Y-%m-%d %H:%M:%S') if dossier.completed_at else '',
+            })
+
+        return response
