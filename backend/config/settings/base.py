@@ -34,6 +34,10 @@ ALLOWED_HOSTS = config(
     cast=Csv()
 )
 
+# CORS Configuration pour débloquer le Frontend (DEV 2A et 2B)
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
