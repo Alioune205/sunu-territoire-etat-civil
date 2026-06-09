@@ -8,6 +8,23 @@ from django.dispatch import receiver
 from apps.dossiers.models import Dossier
 from .services import FCMService
 from .models import Notification
+import threading
+
+def _send_fcm(user, title, body, notification_type, data):
+    try:
+        from apps.notifications.services import FCMService
+        FCMService.send_notification_to_user(user, title, body, notification_type, data)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"FCM send failed: {e}")
+
+def send_notification_async(user, title, body, notification_type, data):
+    thread = threading.Thread(
+        target=_send_fcm, 
+        args=(user, title, body, notification_type, data)
+    )
+    thread.daemon = True
+    thread.start()
 
 logger = logging.getLogger('system')
 
@@ -38,7 +55,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
     if created:
         # Nouveau dossier — notifier uniquement si soumis directement
         if instance.status == Dossier.Status.SUBMITTED:
-            FCMService.send_notification_to_user(
+            send_notification_async(
                 user=instance.citizen,
                 title="Dossier reçu",
                 body=f"Votre dossier {instance.reference} a bien été reçu et enregistré.",
@@ -56,7 +73,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
     # ── Notifications selon le nouveau statut ──
 
     if instance.status == Dossier.Status.SUBMITTED:
-        FCMService.send_notification_to_user(
+        send_notification_async(
             user=instance.citizen,
             title="Dossier reçu",
             body=f"Votre dossier {instance.reference} a bien été reçu et enregistré.",
@@ -66,7 +83,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
 
     elif instance.status == Dossier.Status.IN_REVIEW and instance.assigned_agent:
         # Notifier l'agent assigné
-        FCMService.send_notification_to_user(
+        send_notification_async(
             user=instance.assigned_agent,
             title="Nouveau dossier attribué",
             body=f"Le dossier {instance.reference} vous a été attribué pour traitement.",
@@ -74,7 +91,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             data={'dossier_id': str(instance.id)}
         )
         # Notifier le citoyen que son dossier est en cours de traitement
-        FCMService.send_notification_to_user(
+        send_notification_async(
             user=instance.citizen,
             title="Dossier en cours de traitement",
             body=f"Votre dossier {instance.reference} est en cours d'examen par un agent.",
@@ -83,7 +100,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
         )
 
     elif instance.status == Dossier.Status.APPROVED:
-        FCMService.send_notification_to_user(
+        send_notification_async(
             user=instance.citizen,
             title="Dossier approuvé ✅",
             body=f"Votre dossier {instance.reference} a été approuvé ! Il sera finalisé prochainement.",
@@ -92,7 +109,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
         )
 
     elif instance.status == Dossier.Status.REJECTED:
-        FCMService.send_notification_to_user(
+        send_notification_async(
             user=instance.citizen,
             title="Action requise sur votre dossier",
             body=f"Votre dossier {instance.reference} nécessite une action ou a été rejeté.",
@@ -101,7 +118,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
         )
 
     elif instance.status == Dossier.Status.COMPLETED:
-        FCMService.send_notification_to_user(
+        send_notification_async(
             user=instance.citizen,
             title="Document disponible 🎉",
             body=f"Votre acte d'état civil (dossier {instance.reference}) est disponible !",

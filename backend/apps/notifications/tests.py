@@ -2,7 +2,7 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
-from apps.notifications.models import Notification, NotificationToken
+from apps.notifications.models import Notification, DeviceToken
 
 User = get_user_model()
 
