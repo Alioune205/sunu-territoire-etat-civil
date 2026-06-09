@@ -183,6 +183,12 @@ class CitizenProfile(models.Model):
         blank=True,
         verbose_name='Photo',
     )
+    cni_document = models.FileField(
+        upload_to='profiles/cni/',
+        null=True,
+        blank=True,
+        verbose_name='Document CNI (Recto/Verso)',
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name='Date de création',
