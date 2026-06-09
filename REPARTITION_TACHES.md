@@ -266,35 +266,35 @@ def compute_file_hash(file_obj) -> str:
 
 ---
 
-## 💻 DEV 2A — PAPE ALIOUNE SÈNE · Frontend React Web COMPLET (Admin + Public)
+## 💻 DEV 2A — PAPE ALIOUNE SÈNE · Dashboards Administratifs Web React
 
 > [!TIP]
-> ⏰ **Deadline : 08 juin 2026 à 22h00** — Vous êtes désormais le **seul responsable du Frontend Web React**. Le portail citoyen (web) et le Dashboard Admin vous sont totalement affectés.
+> ⏰ **Deadline : 08 juin 2026 à 22h00** — Vous êtes responsable **uniquement** des interfaces administratives Web. Vous ne devez pas développer l'application citoyen (celle-ci est exclusivement gérée sur mobile par DEV 3 & 4).
 
 ### Stack obligatoire : React + TailwindCSS + ShadCN
 
 ### Tâches
 
-#### 1. Architecture et Routing Web (Portail Citoyen + Admin)
+#### 1. Architecture et Routing Web (Super Admin & Officier d'État Civil)
 ```
-/                    → Landing page publique
-/login               → Connexion (Citoyen et Admin)
-/nouvelle-demande    → Citoyen : Formulaires de demande
-/dossiers            → Citoyen : Suivi temps réel / Admin : Liste avec filtres
-/dashboard           → Admin : Vue principale (KPIs + graphiques)
-/verify/:uuid        → Vérification publique (Page du QR Code)
+/login                 → Connexion sécurisée des agents et officiers
+/dashboard/super-admin → Vue globale (Gestion paiements, Audit Logs, Création Agents)
+/dashboard/officier    → Vue Officier (Statistiques, Dossiers à valider, Approuver/Rejeter)
+/dossiers              → Liste des dossiers avec filtres avancés
+/citoyens              → Base de données des citoyens
 ```
 
-#### 2. Composants Formulaires et Upload
-- Validation avec `react-hook-form` + `zod`.
-- Composant Drag & Drop pour l'upload des pièces (vers `POST /api/documents/upload/`).
+#### 2. Modules de Sécurité et Paiement (Super Admin)
+- Interface de gestion des paiements (que vous avez commencé).
+- Visualisation des Audit Logs pour tracer toutes les actions des agents.
 
-#### 3. Dashboard Admin et Datatables
+#### 3. Dashboard Officier d'État Civil et Datatables
 - Table avec `TanStack Table` + filtres côté serveur.
-- Actions : Voir · Assigner agent · Changer statut · Rejeter.
+- Actions : Assigner agent · Changer statut · Rejeter avec motif.
+- **Bouton de validation finale** pour déclencher la génération du PDF sécurisé.
 
-#### 4. Intégration Ndiogoye Web
-- Interface de chat (style widget ou page) pour discuter avec l'IA.
+#### 4. Intégration Ndiogoye (Supervision)
+- Interface pour visualiser l'historique des requêtes IA faites par les citoyens, afin d'optimiser le modèle.
 
 ---
 
