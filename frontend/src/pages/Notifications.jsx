@@ -1,0 +1,232 @@
+// src/pages/Notifications.jsx
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Bell, CheckCheck, ExternalLink, Clock } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
+
+// Mock notifications — attend DEV 1C (Maïmouna Sall)
+// TODO: GET /api/notifications/ (DEV 1C)
+const INITIAL_NOTIFICATIONS = [
+  {
+    id: 1,
+    title: 'Nouveau dossier soumis',
+    body: 'TC-2026-089 — Acte de naissance',
+    is_read: false,
+    created_at: new Date().toISOString(),
+    related_dossier_id: 89,
+  },
+  {
+    id: 2,
+    title: 'Dossier approuvé',
+    body: "TC-2026-045 approuvé par l'officier",
+    is_read: true,
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+    related_dossier_id: 45,
+  },
+  {
+    id: 3,
+    title: 'Dossier rejeté',
+    body: 'TC-2026-031 — Documents insuffisants',
+    is_read: false,
+    created_at: new Date(Date.now() - 7200000).toISOString(),
+    related_dossier_id: 31,
+  },
+  {
+    id: 4,
+    title: 'Agent assigné',
+    body: 'TC-2026-072 — Awa Sall assignée',
+    is_read: true,
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    related_dossier_id: 72,
+  },
+  {
+    id: 5,
+    title: 'Dossier terminé',
+    body: 'TC-2026-028 — Acte de mariage finalisé',
+    is_read: true,
+    created_at: new Date(Date.now() - 172800000).toISOString(),
+    related_dossier_id: 28,
+  },
+  {
+    id: 6,
+    title: 'Nouveau dossier soumis',
+    body: 'TC-2026-095 — Certificat de résidence',
+    is_read: false,
+    created_at: new Date(Date.now() - 259200000).toISOString(),
+    related_dossier_id: 95,
+  },
+];
+
+function getTimeAgo(dateStr) {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diff = now - date;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return "À l'instant";
+  if (minutes < 60) return `Il y a ${minutes} min`;
+  if (hours < 24) return `Il y a ${hours}h`;
+  if (days === 1) return 'Hier';
+  if (days < 7) return `Il y a ${days} jours`;
+  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+}
+
+function getDateGroup(dateStr) {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const weekStart = new Date(today.getTime() - 7 * 86400000);
+
+  if (date >= today) return "Aujourd'hui";
+  if (date >= yesterday) return 'Hier';
+  if (date >= weekStart) return 'Cette semaine';
+  return 'Plus ancien';
+}
+
+export default function Notifications() {
+  const navigate = useNavigate();
+  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  // Grouper par date
+  const grouped = useMemo(() => {
+    const groups = {};
+    const order = ["Aujourd'hui", 'Hier', 'Cette semaine', 'Plus ancien'];
+
+    notifications.forEach((notif) => {
+      const group = getDateGroup(notif.created_at);
+      if (!groups[group]) groups[group] = [];
+      groups[group].push(notif);
+    });
+
+    // Trier chaque groupe par date décroissante
+    Object.keys(groups).forEach((key) => {
+      groups[key].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    });
+
+    return order.filter((g) => groups[g]?.length > 0).map((g) => ({
+      label: g,
+      items: groups[g],
+    }));
+  }, [notifications]);
+
+  const markAllAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    toast({
+      title: 'Notifications lues',
+      description: 'Toutes les notifications ont été marquées comme lues.',
+      variant: 'success',
+    });
+    // TODO: POST /api/notifications/mark-all-read/ (DEV 1C)
+  };
+
+  const handleClick = (notif) => {
+    // Marquer comme lu
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
+    );
+    // TODO: POST /api/notifications/{id}/mark-read/ (DEV 1C)
+
+    // Naviguer vers le dossier
+    if (notif.related_dossier_id) {
+      navigate(`/dossiers/${notif.related_dossier_id}`);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-secondary">Notifications</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {unreadCount > 0
+              ? `${unreadCount} notification${unreadCount > 1 ? 's' : ''} non lue${unreadCount > 1 ? 's' : ''}`
+              : 'Toutes les notifications sont lues'}
+          </p>
+        </div>
+        {unreadCount > 0 && (
+          <Button variant="outline" onClick={markAllAsRead} className="gap-2">
+            <CheckCheck className="h-4 w-4" />
+            Tout marquer comme lu
+          </Button>
+        )}
+      </div>
+
+      {grouped.length > 0 ? (
+        <div className="space-y-6">
+          {grouped.map((group) => (
+            <div key={group.label}>
+              <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                {group.label}
+              </h3>
+              <div className="space-y-2">
+                {group.items.map((notif) => (
+                  <Card
+                    key={notif.id}
+                    className={`p-4 border cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/20 ${
+                      notif.is_read
+                        ? 'bg-white border-slate-100'
+                        : 'bg-[#EFF6FF] border-primary/20'
+                    }`}
+                    onClick={() => handleClick(notif)}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div
+                        className={`p-2 rounded-lg flex-shrink-0 ${
+                          notif.is_read ? 'bg-slate-100' : 'bg-primary/10'
+                        }`}
+                      >
+                        <Bell
+                          className={`h-4 w-4 ${
+                            notif.is_read ? 'text-slate-400' : 'text-primary'
+                          }`}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4
+                            className={`text-sm font-medium ${
+                              notif.is_read ? 'text-slate-600' : 'text-secondary'
+                            }`}
+                          >
+                            {notif.title}
+                          </h4>
+                          {!notif.is_read && (
+                            <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-500 mt-0.5">{notif.body}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Clock className="h-3 w-3 text-slate-400" />
+                          <span className="text-xs text-slate-400">
+                            {getTimeAgo(notif.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-slate-300 flex-shrink-0 mt-1" />
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Card className="p-12 text-center border-slate-100">
+          <Bell className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-slate-500">Aucune notification</h3>
+          <p className="text-sm text-slate-400 mt-1">
+            Vous serez notifié des nouvelles activités ici.
+          </p>
+        </Card>
+      )}
+    </div>
+  );
+}
