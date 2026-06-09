@@ -158,116 +158,232 @@ def _generate_final_pdf(dossier, officier, timbre_ref, cachet_path,
 def _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
                       cachet_path, signature_path, cachet_nominal_path, qr_image_reader):
     """Dessine tout le contenu du PDF sur le canvas."""
+    
+    # Couleurs du Sénégal
+    VERT = HexColor('#00853F')
+    JAUNE = HexColor('#FDEF42')
+    ROUGE = HexColor('#E31B23')
+    NOIR = HexColor('#000000')
+    GRIS = HexColor('#444444')
+    GRIS_CLAIR = HexColor('#DDDDDD')
 
-    # ======== EN-TÊTE OFFICIEL ========
-    p.setFont("Helvetica-Bold", 14)
-    p.drawCentredString(width / 2, height - 2.5 * cm, "RÉPUBLIQUE DU SÉNÉGAL")
+    metadata = dossier.metadata or {}
+    citizen = dossier.citizen
 
-    p.setFont("Helvetica", 10)
-    p.drawCentredString(width / 2, height - 3.2 * cm, "Un Peuple — Un But — Une Foi")
-
-    p.setFont("Helvetica-Bold", 9)
-    p.drawCentredString(width / 2, height - 4 * cm, "MINISTÈRE DE L'INTÉRIEUR ET DE LA SÉCURITÉ PUBLIQUE")
-
-    # Commune
-    commune_name = dossier.commune.name if dossier.commune else "N/A"
-    p.setFont("Helvetica-Bold", 11)
-    p.drawCentredString(width / 2, height - 5 * cm, f"COMMUNE DE {commune_name.upper()}")
-
-    # Ligne de séparation
-    p.setStrokeColor(HexColor('#333333'))
-    p.setLineWidth(1.5)
-    p.line(3 * cm, height - 5.5 * cm, width - 3 * cm, height - 5.5 * cm)
-
-    # ======== TITRE DU DOCUMENT ========
-    type_display = dossier.get_type_display().upper()
-    p.setFont("Helvetica-Bold", 16)
-    p.drawCentredString(width / 2, height - 7 * cm, type_display)
-
-    p.setFont("Helvetica", 10)
-    p.drawCentredString(width / 2, height - 7.7 * cm, f"Réf. : {dossier.reference}")
-
-    # ======== TIMBRE FISCAL ========
-    if timbre_ref:
+    # --- FILIGRANE (Baobab/Cachet de la commune) ---
+    if cachet_path and os.path.exists(cachet_path):
         p.saveState()
-        p.setFont("Helvetica-Bold", 8)
-        p.setFillColor(HexColor('#006633'))
-        p.drawString(width - 6 * cm, height - 1.5 * cm, f"TIMBRE : {timbre_ref}")
-        p.setFont("Helvetica", 7)
-        p.drawString(width - 6 * cm, height - 2 * cm, "500 FCFA — Acquitté")
+        # Opacité très faible pour le filigrane
+        p.setFillAlpha(0.08)
+        p.setStrokeAlpha(0.08)
+        try:
+            # We can't easily set image alpha in standard ReportLab without extending Canvas, 
+            # but drawing it very lightly if it's an SVG works. If it's a PNG, ReportLab doesn't support alpha directly on drawImage unless using ImageReader with alpha channel.
+            # As a workaround, we'll draw a large light grey circle and text to simulate a watermark if alpha fails.
+            p.translate(width/2, height/2)
+            p.rotate(30)
+            p.setFont("Helvetica-Bold", 80)
+            p.setFillColor(HexColor('#F0F0F0'))
+            p.drawCentredString(0, 0, "BAOBAB - ÉTAT CIVIL")
+        except:
+            pass
+        p.restoreState()
+    else:
+        p.saveState()
+        p.translate(width/2, height/2)
+        p.rotate(45)
+        p.setFont("Helvetica-Bold", 60)
+        p.setFillColor(HexColor('#F4F4F4'))
+        p.drawCentredString(0, 0, "ÉTAT CIVIL DU SÉNÉGAL")
         p.restoreState()
 
-    # ======== INFORMATIONS DU DOSSIER ========
-    y = height - 9.5 * cm
-    p.setFont("Helvetica", 11)
+    # ======== EN-TÊTE OFFICIEL ========
+    y = height - 2.5 * cm
+    p.setFillColor(NOIR)
+    p.setFont("Helvetica-Bold", 14)
+    p.drawCentredString(width / 2, y, "RÉPUBLIQUE DU SÉNÉGAL")
+    
+    y -= 0.6 * cm
+    p.setFont("Helvetica", 10)
+    p.drawCentredString(width / 2, y, "Un Peuple — Un But — Une Foi")
 
-    citizen = dossier.citizen
-    metadata = dossier.metadata or {}
+    y -= 0.7 * cm
+    p.setFont("Helvetica-Bold", 9)
+    p.drawCentredString(width / 2, y, "MINISTÈRE DE L'INTÉRIEUR ET DE LA SÉCURITÉ PUBLIQUE")
 
-    infos = [
-        ("Nom complet", citizen.full_name),
-        ("Numéro de registre", metadata.get('numero_registre', 'N/A')),
-        ("Année de registre", str(metadata.get('annee_registre', 'N/A'))),
-        ("Commune de déclaration", commune_name),
-    ]
+    commune_name = dossier.commune.name if dossier.commune else "N/A"
+    region_name = dossier.commune.region if dossier.commune else "N/A"
+    dept_name = dossier.commune.department if hasattr(dossier.commune, 'department') and dossier.commune.department else "N/A"
 
-    # Ajouter des infos spécifiques selon le type
-    if dossier.type == 'marriage_certificate':
-        infos.append(("Rôle", metadata.get('role_mariage', 'N/A')))
-    if dossier.type == 'death_certificate':
-        infos.append(("Lien avec le défunt", metadata.get('lien_defunt', 'N/A')))
+    y -= 0.7 * cm
+    p.setFont("Helvetica-Bold", 11)
+    p.setFillColor(VERT)
+    p.drawCentredString(width / 2, y, f"CENTRE D'ÉTAT CIVIL DE {commune_name.upper()}")
 
-    for label, value in infos:
+    p.setStrokeColor(GRIS_CLAIR)
+    p.setLineWidth(1)
+    y -= 0.3 * cm
+    p.line(3 * cm, y, width - 3 * cm, y)
+
+    # ======== TIMBRE FISCAL (Sécurisé - En attente d'être dessiné en bas) ========
+    # Nous le dessinerons plus tard avec les cachets.
+
+    # ======== TITRE DU DOCUMENT ========
+    y -= 1.2 * cm
+    type_display = dossier.get_type_display().upper()
+    p.setFillColor(NOIR)
+    p.setFont("Helvetica-Bold", 18)
+    p.drawCentredString(width / 2, y, "EXTRAIT DU REGISTRE DES ACTES DE NAISSANCE")
+    
+    y -= 0.6 * cm
+    p.setFont("Helvetica", 10)
+    p.drawCentredString(width / 2, y, f"Réf. Document : {dossier.reference}")
+
+    # Helper function to draw a section box
+    def draw_section(title, start_y, lines_data):
+        """Dessine un bloc encadré avec des lignes de données"""
         p.setFont("Helvetica-Bold", 10)
-        p.drawString(3.5 * cm, y, f"{label} :")
-        p.setFont("Helvetica", 10)
-        p.drawString(9 * cm, y, str(value))
-        y -= 0.7 * cm
+        p.setFillColor(VERT)
+        p.drawString(1.5 * cm, start_y, title.upper())
+        
+        box_y = start_y - 0.2 * cm
+        p.setStrokeColor(VERT)
+        p.setLineWidth(0.5)
+        
+        current_y = box_y - 0.6 * cm
+        p.setFillColor(NOIR)
+        
+        for left_label, left_val, right_label, right_val in lines_data:
+            p.setFont("Helvetica-Bold", 9)
+            p.drawString(1.7 * cm, current_y, f"{left_label} :")
+            p.setFont("Helvetica", 9)
+            p.drawString(4.5 * cm, current_y, str(left_val))
+            
+            if right_label:
+                p.setFont("Helvetica-Bold", 9)
+                p.drawString(11 * cm, current_y, f"{right_label} :")
+                p.setFont("Helvetica", 9)
+                p.drawString(14.5 * cm, current_y, str(right_val))
+                
+            current_y -= 0.6 * cm
+            
+        # Draw the box around
+        height_box = box_y - current_y
+        p.rect(1.5 * cm, current_y, width - 3 * cm, height_box)
+        return current_y - 0.5 * cm
 
-    # ======== DATE DE DÉLIVRANCE ========
+    # --- Infos Admin ---
     y -= 1 * cm
-    p.setFont("Helvetica-Oblique", 10)
+    y = draw_section("Informations Administratives", y, [
+        ("Région", region_name, "Département", dept_name),
+        ("Commune", commune_name, "Centre État Civil", commune_name),
+        ("Année Registre", str(metadata.get('annee_registre', 'N/A')), "Numéro Registre", str(metadata.get('numero_registre', 'N/A'))),
+    ])
+
+    # --- Infos Enfant ---
+    y = draw_section("Informations de l'Enfant", y, [
+        ("Prénoms", metadata.get('prenoms_enfant', 'N/A'), "Nom", metadata.get('nom_enfant', 'N/A')),
+        ("Né(e) le", metadata.get('date_naissance_personne', 'N/A'), "Heure", metadata.get('heure_naissance', 'Non précisée')),
+        ("Lieu", metadata.get('lieu_naissance', 'N/A'), "Sexe", metadata.get('sexe', 'N/A')),
+    ])
+
+    # --- Infos Parents ---
+    y = draw_section("Informations des Parents", y, [
+        ("Prénom Père", metadata.get('prenom_pere', 'N/A'), "", ""),
+        ("Prénoms Mère", metadata.get('prenom_mere', 'N/A'), "Nom Mère", metadata.get('nom_mere', 'N/A')),
+    ])
+
+    # --- Jugement Supplétif ---
+    if metadata.get('est_jugement_suppletif'):
+        y = draw_section("Jugement d'Autorisation d'Inscription", y, [
+            ("Tribunal", metadata.get('tribunal_competent', 'N/A'), "N° Jugement", metadata.get('numero_jugement', 'N/A')),
+            ("Date Jugement", metadata.get('date_jugement', 'N/A'), "Date Inscription", f"{metadata.get('date_inscription', 'N/A')} ({metadata.get('annee_inscription', '')})"),
+        ])
+
+    # ======== CERTIFICATION ET CACHETS ========
+    y -= 0.5 * cm
+    p.setFont("Helvetica-Oblique", 9)
+    p.setFillColor(GRIS)
+    p.drawCentredString(width / 2, y, "Extrait certifié conforme aux indications du registre des naissances.")
+    
+    y -= 0.6 * cm
     date_str = dossier.completed_at.strftime('%d/%m/%Y') if dossier.completed_at else 'N/A'
-    p.drawString(3.5 * cm, y, f"Délivré le : {date_str}")
+    p.setFillColor(NOIR)
+    p.setFont("Helvetica", 10)
+    p.drawString(2 * cm, y, f"Délivré à : {commune_name}")
+    p.drawString(14 * cm, y, f"Le : {date_str}")
+    
+    y -= 0.6 * cm
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(12 * cm, y, "L'Officier de l'État Civil")
 
-    # ======== MENTION LÉGALE ========
-    y -= 1.5 * cm
-    p.setFont("Helvetica-Oblique", 8)
-    p.setFillColor(HexColor('#666666'))
-    p.drawCentredString(width / 2, y,
-                        "Ce document est généré électroniquement et protégé par signature cryptographique HMAC-SHA256.")
-    p.setFillColor(HexColor('#000000'))
-
-    # ======== CACHETS ET SIGNATURES (Bas de page) ========
+    # CACHETS ET TIMBRE EN BAS
     seal_size = 3.5 * cm
-    seal_y = 4 * cm
+    seal_y = y - 4 * cm
 
-    # Cachet communal — bas gauche
-    _draw_seal(p, cachet_path, 2.5 * cm, seal_y, seal_size)
-    p.setFont("Helvetica", 7)
-    p.drawCentredString(2.5 * cm + seal_size / 2, seal_y - 0.5 * cm, "Cachet Communal")
+    # Signature — droite
+    sig_x = width - 2 * cm - seal_size
+    _draw_seal(p, signature_path, sig_x, seal_y, seal_size)
+    if officier:
+        p.setFont("Helvetica-Bold", 8)
+        p.drawCentredString(sig_x + seal_size / 2, seal_y - 0.4 * cm, officier.full_name)
 
-    # Cachet Nominal — bas centre (si dispo)
+    # Cachet Nominal — centre-droit
     if cachet_nominal_path:
-        nom_x = width / 2 - seal_size / 2
+        nom_x = width - 6.5 * cm - seal_size
         _draw_seal(p, cachet_nominal_path, nom_x, seal_y, seal_size)
 
-    # Signature officier — bas droite
-    sig_x = width - 2.5 * cm - seal_size
-    _draw_seal(p, signature_path, sig_x, seal_y, seal_size)
+    # Cachet communal — centre-gauche
+    _draw_seal(p, cachet_path, 6.5 * cm, seal_y, seal_size)
     p.setFont("Helvetica", 7)
-    if officier:
-        p.drawCentredString(sig_x + seal_size / 2, seal_y - 0.5 * cm, officier.full_name)
-        p.drawCentredString(sig_x + seal_size / 2, seal_y - 1 * cm, "Officier d'État Civil")
+    p.drawCentredString(6.5 * cm + seal_size / 2, seal_y - 0.4 * cm, "Cachet Communal")
 
-    # ======== QR CODE (bas centre) ========
+    # Timbre Fiscal - Bas gauche
+    if timbre_ref:
+        p.saveState()
+        stamp_width = 4 * cm
+        stamp_height = 2.2 * cm
+        stamp_x = 1.5 * cm
+        stamp_y = seal_y + 0.5 * cm
+        
+        # Fond légèrement jaune
+        p.setFillColor(HexColor('#FFFFF0'))
+        p.setStrokeColor(VERT)
+        p.setLineWidth(1.5)
+        p.roundRect(stamp_x, stamp_y, stamp_width, stamp_height, 4, stroke=1, fill=1)
+        
+        # Guillochis (lignes intérieures)
+        p.setStrokeColor(HexColor('#E0F0E0'))
+        p.setLineWidth(0.5)
+        for i in range(0, int(stamp_width), 5):
+            p.line(stamp_x + i, stamp_y, stamp_x + i, stamp_y + stamp_height)
+        
+        p.setFillColor(VERT)
+        p.setFont("Helvetica-Bold", 7)
+        p.drawCentredString(stamp_x + stamp_width / 2, stamp_y + 1.6 * cm, "TIMBRE FISCAL ÉLECTRONIQUE")
+        
+        p.setFillColor(ROUGE)
+        p.setFont("Helvetica-Bold", 12)
+        p.drawCentredString(stamp_x + stamp_width / 2, stamp_y + 0.9 * cm, "500 FCFA")
+        
+        p.setFillColor(NOIR)
+        p.setFont("Courier-Bold", 6)
+        p.drawCentredString(stamp_x + stamp_width / 2, stamp_y + 0.3 * cm, f"Réf: {timbre_ref}")
+        p.restoreState()
+
+    # QR CODE - très bas gauche (sous le timbre)
+    qr_y = 1.5 * cm
     if qr_image_reader:
-        qr_size = 3 * cm
-        qr_x = (width - qr_size) / 2
-        qr_y = 4.5 * cm
+        qr_size = 2.5 * cm
+        qr_x = 2 * cm
         p.drawImage(qr_image_reader, qr_x, qr_y, width=qr_size, height=qr_size)
         p.setFont("Helvetica", 7)
-        p.drawCentredString(width / 2, qr_y - 0.4 * cm, "Scanner pour vérifier l'authenticité")
+        p.drawCentredString(qr_x + qr_size / 2, qr_y - 0.3 * cm, "Vérifier")
+
+    # MENTION LEGALE - tout en bas, centrée
+    p.setFont("Helvetica-Oblique", 7)
+    p.setFillColor(HexColor('#888888'))
+    p.drawCentredString(width / 2, 0.8 * cm, "Ce document est sécurisé par une empreinte cryptographique (HMAC-SHA256). Toute modification l'invalide.")
 
 
 def generate_signed_certificate(dossier, officier):
@@ -315,6 +431,14 @@ def generate_signed_certificate(dossier, officier):
                     signature_officier_path = os.path.join(folder_path, file)
                 elif file.startswith('Cachet_Nominal') and file.endswith('.png'):
                     cachet_nominal_path = os.path.join(folder_path, file)
+
+    # --- Règle Métier R3 : Vérification des 4 éléments de validation ---
+    if not cachet_communal_path or not signature_officier_path or not cachet_nominal_path or not timbre:
+        raise ValueError(
+            "Règle R3 non respectée : Un extrait sans les 4 éléments de validation "
+            "(signature + cachet Baobab + cachet nominal + Timbre) est invalide "
+            "et ne peut être délivré."
+        )
 
     # --- 3. Générer le PDF brut (sans QR) ---
     raw_pdf_bytes = _generate_raw_pdf(

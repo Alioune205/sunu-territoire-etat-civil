@@ -1,3 +1,3 @@
-from .pdf_generator import generate_dossier_pdf
+from .pdf_generator import generate_signed_certificate
 
-__all__ = ['generate_dossier_pdf']
+__all__ = ['generate_signed_certificate']

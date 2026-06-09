@@ -164,7 +164,7 @@ class DossierViewSet(viewsets.ModelViewSet):
         else:
             # Demande personnelle : vérifier que le nom correspond à l'utilisateur connecté
             user_nom = user.full_name.lower().strip()
-            registre_nom = registre.nom_complet_personne.lower().strip()
+            registre_nom = f"{registre.prenoms_enfant} {registre.nom_enfant}".lower().strip()
             
             # Simple vérification (dans la vraie vie on utilise des algorithmes phonétiques)
             if user_nom not in registre_nom and registre_nom not in user_nom:
@@ -251,13 +251,13 @@ class DossierViewSet(viewsets.ModelViewSet):
         """POST /api/dossiers/{id}/approve/ — Approve the dossier and generate signed certificate."""
         dossier = self.get_object()
 
-        if dossier.status != Dossier.Status.IN_REVIEW:
+        if dossier.status not in [Dossier.Status.IN_REVIEW, Dossier.Status.GENERATED]:
             return error_response(
-                message='Seul un dossier en vérification peut être approuvé.',
+                message='Seul un dossier en vérification ou généré peut être approuvé.',
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
-        dossier.status = Dossier.Status.APPROVED
+        dossier.status = Dossier.Status.VALIDATED
         dossier.completed_at = timezone.now()
         dossier.save(update_fields=['status', 'completed_at', 'updated_at'])
 
