@@ -7,6 +7,7 @@ from .views import (
     GlobalStatsView,
     PerformanceStatsView,
     ActivityStatsView,
+    ExportDossiersCSVView,
 )
 
 urlpatterns = [
@@ -29,5 +30,10 @@ urlpatterns = [
         'activity/',
         ActivityStatsView.as_view(),
         name='activity-stats'
+    ),
+    path(
+        'export/',
+        ExportDossiersCSVView.as_view(),
+        name='dashboard-export'
     ),
 ]
