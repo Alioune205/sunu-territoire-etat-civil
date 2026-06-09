@@ -101,7 +101,7 @@ def _draw_placeholder_seal(c, x, y, size, label):
     c.restoreState()
 
 
-def _generate_raw_pdf(dossier, officier, timbre_ref, cachet_path, signature_path):
+def _generate_raw_pdf(dossier, officier, timbre_ref, cachet_path, signature_path, cachet_nominal_path):
     """
     Génère le contenu PDF brut (SANS QR Code).
     On génère d'abord sans QR pour pouvoir hasher le contenu,
@@ -112,7 +112,7 @@ def _generate_raw_pdf(dossier, officier, timbre_ref, cachet_path, signature_path
     width, height = A4
 
     _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
-                      cachet_path, signature_path, qr_image_reader=None)
+                      cachet_path, signature_path, cachet_nominal_path, qr_image_reader=None)
 
     p.showPage()
     p.save()
@@ -121,7 +121,7 @@ def _generate_raw_pdf(dossier, officier, timbre_ref, cachet_path, signature_path
 
 
 def _generate_final_pdf(dossier, officier, timbre_ref, cachet_path,
-                        signature_path, verification_url):
+                        signature_path, cachet_nominal_path, verification_url):
     """
     Génère le PDF final AVEC le QR Code de vérification.
     """
@@ -147,7 +147,7 @@ def _generate_final_pdf(dossier, officier, timbre_ref, cachet_path,
     width, height = A4
 
     _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
-                      cachet_path, signature_path, qr_image_reader)
+                      cachet_path, signature_path, cachet_nominal_path, qr_image_reader)
 
     p.showPage()
     p.save()
@@ -156,7 +156,7 @@ def _generate_final_pdf(dossier, officier, timbre_ref, cachet_path,
 
 
 def _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
-                      cachet_path, signature_path, qr_image_reader):
+                      cachet_path, signature_path, cachet_nominal_path, qr_image_reader):
     """Dessine tout le contenu du PDF sur le canvas."""
 
     # ======== EN-TÊTE OFFICIEL ========
@@ -247,6 +247,11 @@ def _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
     p.setFont("Helvetica", 7)
     p.drawCentredString(2.5 * cm + seal_size / 2, seal_y - 0.5 * cm, "Cachet Communal")
 
+    # Cachet Nominal — bas centre (si dispo)
+    if cachet_nominal_path:
+        nom_x = width / 2 - seal_size / 2
+        _draw_seal(p, cachet_nominal_path, nom_x, seal_y, seal_size)
+
     # Signature officier — bas droite
     sig_x = width - 2.5 * cm - seal_size
     _draw_seal(p, signature_path, sig_x, seal_y, seal_size)
@@ -286,18 +291,35 @@ def generate_signed_certificate(dossier, officier):
     timbre = TimbreFiscal.objects.create(is_used=True)
 
     # --- 2. Résoudre les chemins des cachets ---
-    cachet_communal_path = os.path.join(ASSETS_DIR, 'cachet_communal.svg')
-    signature_officier_path = os.path.join(ASSETS_DIR, 'signature_officier.svg')
+    # Map commune codes to folder names
+    commune_folder_map = {
+        'DKR-PLT': 'dakar_plateau',
+        'DKR-KMS': 'keur_massar',
+        'THS-NDG': 'ndiaganiao'
+    }
+    
+    cachet_communal_path = ''
+    signature_officier_path = ''
+    cachet_nominal_path = ''
 
-    if not os.path.exists(cachet_communal_path):
-        cachet_communal_path = ''
-    if not os.path.exists(signature_officier_path):
-        signature_officier_path = ''
+    if dossier.commune and dossier.commune.code in commune_folder_map:
+        folder = commune_folder_map[dossier.commune.code]
+        folder_path = os.path.join(ASSETS_DIR, folder)
+        
+        # On cherche dynamiquement les fichiers PNG correspondants dans le dossier
+        if os.path.exists(folder_path):
+            for file in os.listdir(folder_path):
+                if file.startswith('Cachet_Communal') and file.endswith('.png'):
+                    cachet_communal_path = os.path.join(folder_path, file)
+                elif file.startswith('Signarure_Officier') and file.endswith('.png'):
+                    signature_officier_path = os.path.join(folder_path, file)
+                elif file.startswith('Cachet_Nominal') and file.endswith('.png'):
+                    cachet_nominal_path = os.path.join(folder_path, file)
 
     # --- 3. Générer le PDF brut (sans QR) ---
     raw_pdf_bytes = _generate_raw_pdf(
         dossier, officier, timbre.reference,
-        cachet_communal_path, signature_officier_path
+        cachet_communal_path, signature_officier_path, cachet_nominal_path
     )
 
     # --- 4. Hash du PDF brut ---
@@ -326,7 +348,7 @@ def generate_signed_certificate(dossier, officier):
     # --- 7. Régénérer le PDF final avec le QR ---
     final_pdf_bytes = _generate_final_pdf(
         dossier, officier, timbre.reference,
-        cachet_communal_path, signature_officier_path,
+        cachet_communal_path, signature_officier_path, cachet_nominal_path,
         verification_url
     )
 
