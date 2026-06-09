@@ -15,6 +15,7 @@ import Agents from '@/pages/Agents';
 import AuditLogs from '@/pages/AuditLogs';
 import Notifications from '@/pages/Notifications';
 import Settings from '@/pages/Settings';
+import Transactions from '@/pages/Transactions';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
               <Route path="/communes" element={<Communes />} />
               <Route path="/agents" element={<Agents />} />
               <Route path="/audit-logs" element={<AuditLogs />} />
+              <Route path="/admin/transactions" element={<Transactions />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
             </Route>

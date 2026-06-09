@@ -1,6 +1,5 @@
 // src/components/KPICard.jsx
 import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 function useCountUp(end, duration = 300) {
@@ -15,7 +14,6 @@ function useCountUp(end, duration = 300) {
       const progress = timestamp - startTime;
       const percentage = Math.min(progress / duration, 1);
       
-      // ease-out cubic
       const easeOut = 1 - Math.pow(1 - percentage, 3);
       setCount(Math.floor(end * easeOut));
 
@@ -38,10 +36,9 @@ export function KPICard({
   title, 
   value, 
   icon: Icon, 
-  color, 
   loading = false, 
-  trend, // { value: number, label: string }
-  criticalStatus // 'warning' | 'error'
+  trend,
+  criticalStatus // 'warning' | 'error' | 'success' | 'info'
 }) {
   const numericValue = typeof value === 'number' ? value : parseFloat(value) || 0;
   const isPercentage = typeof value === 'string' && value.includes('%');
@@ -50,42 +47,46 @@ export function KPICard({
 
   if (loading) {
     return (
-      <Card className="p-5 border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl">
+      <div className="kpi-card skeleton border-border-strong flex flex-col justify-between">
         <div className="flex justify-between items-start mb-2">
           <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
-            <div className="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+            <div className="h-6 w-6 rounded bg-layer-3 animate-pulse" />
+            <div className="h-3 w-24 rounded bg-layer-3 animate-pulse" />
           </div>
         </div>
-        <div className="h-[48px] w-20 rounded bg-slate-200 dark:bg-slate-700 animate-pulse mt-2" />
-      </Card>
+        <div className="h-[48px] w-20 rounded bg-layer-3 animate-pulse mt-2" />
+      </div>
     );
   }
 
-  const borderClass = criticalStatus === 'warning' ? 'border-l-4 border-l-warning' : 
-                      criticalStatus === 'error' ? 'border-l-4 border-l-danger' : '';
+  const statusClass = criticalStatus === 'warning' ? 'critical' : criticalStatus === 'error' ? 'error' : '';
+  const statusColor = criticalStatus || 'info';
 
   return (
-    <Card className={`p-5 border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl transition-all duration-200 shadow-sm hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:-translate-y-px flex flex-col justify-between ${borderClass}`}>
+    <div className={`kpi-card flex flex-col justify-between ${statusClass}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          {Icon && <Icon className="h-6 w-6 flex-shrink-0" style={{ color }} />}
-          <span className="text-[12px] font-medium text-muted-foreground">{title}</span>
+          {Icon && (
+            <div className="card-icon" style={{ background: `var(--${statusColor}-dim)`, color: `var(--${statusColor})` }}>
+              <Icon className="h-5 w-5 flex-shrink-0" />
+            </div>
+          )}
+          <span className="kpi-card-label">{title}</span>
         </div>
       </div>
 
       {/* Value & Trend */}
-      <div className="flex items-end justify-between">
-        <p className="text-[40px] font-semibold leading-none text-foreground mt-2">
+      <div className="flex items-end justify-between mt-2">
+        <p className="kpi-card-value">
           {displayValue}
         </p>
         
         {trend && value > 0 && (
           <div className={`flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full ${
-            trend.value > 0 ? 'bg-success/10 text-success' : 
-            trend.value < 0 ? 'bg-danger/10 text-danger' : 
-            'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+            trend.value > 0 ? 'bg-success-dim text-success' : 
+            trend.value < 0 ? 'bg-error-dim text-error' : 
+            'bg-layer-2 text-text-400'
           }`}>
             {trend.value > 0 ? <TrendingUp className="h-3 w-3" /> : 
              trend.value < 0 ? <TrendingDown className="h-3 w-3" /> : 
@@ -94,6 +95,6 @@ export function KPICard({
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }

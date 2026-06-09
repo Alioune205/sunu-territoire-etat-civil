@@ -8,22 +8,62 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary:    'hsl(var(--primary))',
-        secondary:  'hsl(var(--secondary))',
-        success:    'hsl(var(--success))',
-        warning:    'hsl(var(--warning))',
-        danger:     'hsl(var(--danger))',
-        info:       'hsl(var(--info))',
-        background: 'hsl(var(--background))',
-        border:     'hsl(var(--border))',
-        input:      'hsl(var(--input))',
-        ring:       'hsl(var(--ring))',
-        foreground: 'hsl(var(--foreground))',
-        muted:      { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
-        accent:     { DEFAULT: 'hsl(var(--accent))', foreground: 'hsl(var(--accent-foreground))' },
-        destructive:{ DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
-        card:       { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
-        popover:    { DEFAULT: 'hsl(var(--popover))', foreground: 'hsl(var(--popover-foreground))' },
+        layer: {
+          0: 'var(--layer-0)',
+          1: 'var(--layer-1)',
+          2: 'var(--layer-2)',
+          3: 'var(--layer-3)',
+          4: 'var(--layer-4)',
+        },
+        border: {
+          strong: 'var(--border-strong)',
+          subtle: 'var(--border-subtle)',
+          glow: 'var(--border-glow)',
+          DEFAULT: 'var(--border-strong)',
+        },
+        amber: {
+          DEFAULT: 'var(--amber)',
+          dim: 'var(--amber-dim)',
+          glow: 'var(--amber-glow)',
+          border: 'var(--amber-border)',
+        },
+        text: {
+          100: 'var(--text-100)',
+          200: 'var(--text-200)',
+          300: 'var(--text-300)',
+          400: 'var(--text-400)',
+          500: 'var(--text-500)',
+        },
+        primary: 'var(--amber)',
+        success: {
+          DEFAULT: 'var(--success)',
+          dim: 'var(--success-dim)',
+        },
+        warning: {
+          DEFAULT: 'var(--warning)',
+          dim: 'var(--warning-dim)',
+        },
+        error: {
+          DEFAULT: 'var(--error)',
+          dim: 'var(--error-dim)',
+        },
+        info: {
+          DEFAULT: 'var(--info)',
+          dim: 'var(--info-dim)',
+        },
+        danger: {
+          DEFAULT: 'var(--error)',
+          dim: 'var(--error-dim)',
+        },
+        // Maintien de certaines variables par défaut pour compatibilité radx-ui
+        background: 'var(--layer-0)',
+        foreground: 'var(--text-200)',
+        ring: 'var(--amber)',
+        input: 'var(--border-strong)',
+        muted: { DEFAULT: 'var(--layer-2)', foreground: 'var(--text-400)' },
+        accent: { DEFAULT: 'var(--layer-2)', foreground: 'var(--text-100)' },
+        card: { DEFAULT: 'var(--layer-1)', foreground: 'var(--text-200)' },
+        popover: { DEFAULT: 'var(--layer-3)', foreground: 'var(--text-200)' },
       },
       borderRadius: {
         lg: '0.5rem',
@@ -33,6 +73,7 @@ export default {
       fontFamily: {
         sans: ['"IBM Plex Sans"', 'system-ui', '-apple-system', 'sans-serif'],
         display: ['"Playfair Display"', 'Georgia', 'serif'],
+        mono: ['"IBM Plex Mono"', 'monospace'],
         serif: ['"Playfair Display"', 'Georgia', 'serif'],
       },
       keyframes: {

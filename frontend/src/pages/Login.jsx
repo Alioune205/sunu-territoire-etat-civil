@@ -4,10 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
-import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Loader2, AlertCircle, ChevronLeft, Check, X } from 'lucide-react';
 import logo from '@/assets/logo.jpg';
+import axiosClient from '@/api/axiosClient';
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 30;
@@ -20,8 +20,22 @@ export default function Login() {
   const [error, setError] = useState(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutTimer, setLockoutTimer] = useState(0);
+  
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Forgot password stepper states
+  const [viewMode, setViewMode] = useState('login'); // 'login' | 'email' | 'otp' | 'reset'
+  const [resetEmail, setResetEmail] = useState('');
+  const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  
+  // Timers
+  const [otpExpiry, setOtpExpiry] = useState(600); // 10 minutes (600s)
+  const [resendCooldown, setResendCooldown] = useState(0); // 60s
 
   // Si déjà authentifié, redirect direct
   useEffect(() => {
@@ -45,8 +59,27 @@ export default function Login() {
     return () => clearInterval(interval);
   }, [lockoutTimer]);
 
+  // OTP Expiry Countdown
+  useEffect(() => {
+    if (viewMode !== 'otp' || otpExpiry <= 0) return;
+    const interval = setInterval(() => {
+      setOtpExpiry((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [viewMode, otpExpiry]);
+
+  // Resend Cooldown Countdown
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendCooldown]);
+
   const isLocked = lockoutTimer > 0;
 
+  // Soumission login
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     setError(null);
@@ -88,70 +121,249 @@ export default function Login() {
     }
   }, [email, password, isLocked, failedAttempts, login, navigate]);
 
-  const handleForgotPassword = (e) => {
+  // OTP 1: Demander OTP
+  const handleRequestOTP = async (e) => {
     e.preventDefault();
-    toast({
-      title: 'Mot de passe oublié',
-      description: 'Contactez votre administrateur système pour réinitialiser votre mot de passe.',
-    });
+    if (!resetEmail) {
+      setError('Veuillez saisir votre adresse email.');
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      await axiosClient.post('/api/v1/auth/super-admin/otp-request', { email: resetEmail });
+      setViewMode('otp');
+      setOtpExpiry(600);
+      setResendCooldown(60);
+      setOtpValues(['', '', '', '', '', '']);
+      toast({
+        title: 'Code OTP envoyé',
+        description: 'Un code de vérification a été envoyé sur votre messagerie.',
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Impossible d\'envoyer le code OTP.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // OTP 2: Renvoyer OTP
+  const handleResendOTP = async () => {
+    if (resendCooldown > 0) return;
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      await axiosClient.post('/api/v1/auth/super-admin/otp-request', { email: resetEmail });
+      setOtpExpiry(600);
+      setResendCooldown(60);
+      setOtpValues(['', '', '', '', '', '']);
+      toast({
+        title: 'Code OTP renvoyé',
+        description: 'Un nouveau code a été envoyé sur votre messagerie.',
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur de renvoi.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // OTP 3: Saisie cases OTP
+  const handleOtpChange = (index, value) => {
+    if (value && isNaN(Number(value))) return;
+    const newOtpValues = [...otpValues];
+    newOtpValues[index] = value.slice(-1);
+    setOtpValues(newOtpValues);
+
+    // Auto focus next input
+    if (value && index < 5) {
+      const nextInput = document.getElementById(`otp-${index + 1}`);
+      nextInput?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpValues[index] && index > 0) {
+      const prevInput = document.getElementById(`otp-${index - 1}`);
+      prevInput?.focus();
+    }
+  };
+
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    const otpCode = otpValues.join('');
+    if (otpCode.length < 6) {
+      setError('Veuillez entrer le code à 6 chiffres.');
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const response = await axiosClient.post('/api/v1/auth/super-admin/otp-verify', {
+        email: resetEmail,
+        code: otpCode
+      });
+      setResetToken(response.data.reset_token);
+      setViewMode('reset');
+      setNewPassword('');
+      setConfirmPassword('');
+      toast({
+        title: 'OTP validé',
+        description: 'Veuillez saisir votre nouveau mot de passe.',
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Code OTP invalide ou expiré.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // OTP 4: Modifier mot de passe
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError('Les mots de passe ne correspondent pas.');
+      return;
+    }
+    
+    // validation locale de force
+    if (newPassword.length < 12 || !/[A-Z]/.test(newPassword) || !/\d/.test(newPassword) || !/[^a-zA-Z0-9]/.test(newPassword)) {
+      setError('Le mot de passe ne respecte pas les critères de sécurité.');
+      return;
+    }
+
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      await axiosClient.post('/api/v1/auth/super-admin/reset-password', {
+        reset_token: resetToken,
+        new_password: newPassword
+      });
+      toast({
+        title: 'Mot de passe mis à jour',
+        description: 'Votre mot de passe a été modifié avec succès. Connectez-vous.',
+        variant: 'success',
+      });
+      setViewMode('login');
+      setEmail(resetEmail); // prefill login email
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur lors de la modification.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Password strength checks
+  const pwdChecks = {
+    length: newPassword.length >= 12,
+    uppercase: /[A-Z]/.test(newPassword),
+    number: /\d/.test(newPassword),
+    special: /[^a-zA-Z0-9]/.test(newPassword),
+  };
+
+  const getStrengthPercent = () => {
+    const passed = Object.values(pwdChecks).filter(Boolean).length;
+    return passed * 25;
+  };
+
+  const getStrengthLabel = () => {
+    const passed = Object.values(pwdChecks).filter(Boolean).length;
+    if (passed === 0) return 'Très faible';
+    if (passed <= 2) return 'Faible';
+    if (passed === 3) return 'Moyen';
+    return 'Fort';
+  };
+
+  const getStrengthColor = () => {
+    const passed = Object.values(pwdChecks).filter(Boolean).length;
+    if (passed <= 2) return '#EF4444'; // Red
+    if (passed === 3) return '#F59E0B'; // Yellow
+    return '#10B981'; // Green
+  };
+
+  const formatTimer = (sec) => {
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
   const inputErrorClass = error && error.includes('Identifiants')
-    ? 'border-[#E24B4A] bg-[#FFF8F8] focus-visible:ring-[#E24B4A]'
+    ? 'border-error ring-1 ring-error-dim'
     : '';
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#F4F6F9' }}>
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full blur-3xl" style={{ background: 'rgba(30,58,95,0.05)' }} />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full blur-3xl" style={{ background: 'rgba(45,158,107,0.05)' }} />
-      </div>
-
-      <div className="w-full max-w-md relative animate-enter">
-        {/* Logo section */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center mb-4">
-            <img src={logo} alt="Teranga Civil Logo" className="h-24 w-auto object-contain rounded-2xl shadow-xl border border-white/20" />
-          </div>
-          <h1 className="text-[26px] font-semibold tracking-tight" style={{ color: '#1E3A5F', letterSpacing: '-0.3px' }}>
-            Teranga Civil
-          </h1>
-          <p className="text-slate-500 mt-1 text-sm font-medium">
-            Espace Administration
-          </p>
-        </div>
-
-        <Card className="border-0 shadow-2xl shadow-slate-200/50 backdrop-blur-sm">
-          <CardHeader className="pb-4">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-secondary">Connexion</h2>
-              <p className="text-sm text-slate-400 mt-1">
-                Accédez à votre espace de gestion
-              </p>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#F8FAFC' }}>
+      <div className="w-full max-w-[480px] relative animate-enter">
+        <div 
+          className="border"
+          style={{ 
+            padding: '40px 48px',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            boxShadow: '0 4px 24px rgba(15,23,42,0.08)',
+            borderColor: '#E2E8F0'
+          }}
+        >
+          {/* Logo section */}
+          <div className="text-center mb-8">
+            <div 
+              className="inline-flex items-center justify-center mb-4"
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '16px',
+                boxShadow: '0 4px 12px rgba(15,23,42,0.1)',
+                padding: '8px',
+                border: '1px solid rgba(15,23,42,0.05)'
+              }}
+            >
+              <img src={logo} alt="Teranga Civil Logo" className="h-20 w-auto object-contain" style={{ borderRadius: '12px' }} />
             </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Error banner */}
-              {error && (
-                <div
-                  className="flex items-start gap-3 text-sm animate-enter rounded-md"
-                  style={{
-                    background: '#FCEBEB',
-                    borderLeft: '3px solid #E24B4A',
-                    color: '#A32D2D',
-                    padding: '10px 14px',
-                  }}
-                  role="alert"
-                >
-                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>{isLocked ? `Trop de tentatives. Réessayez dans ${lockoutTimer}s.` : error}</span>
-                </div>
-              )}
+            <h1 
+              className="font-display tracking-tight"
+              style={{
+                color: '#0F172A',
+                fontWeight: '700',
+                fontSize: '28px'
+              }}
+            >
+              Teranga Civil
+            </h1>
+            <p 
+              className="mt-2 uppercase"
+              style={{
+                color: '#1D4ED8',
+                fontSize: '13px',
+                letterSpacing: '0.08em',
+                fontWeight: '500'
+              }}
+            >
+              Espace Administration
+            </p>
+          </div>
 
+          {/* Alert error panel */}
+          {error && (
+            <div
+              className="mb-6 flex items-start gap-3 text-sm animate-enter rounded-md bg-[#EF4444]/10 border-l-4 border-[#EF4444] text-[#EF4444] p-3"
+              role="alert"
+            >
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* VIEW 1: LOGIN */}
+          {viewMode === 'login' && (
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-slate-600">
+                <Label 
+                  htmlFor="email" 
+                  style={{ color: '#0F172A', fontWeight: '600', fontSize: '13px' }}
+                >
                   Adresse email
                 </Label>
                 <Input
@@ -162,12 +374,15 @@ export default function Login() {
                   onChange={(e) => { setEmail(e.target.value); setError(null); }}
                   disabled={isLoading || isLocked}
                   autoComplete="email"
-                  className={`h-11 bg-white border-[#E2E8F0] text-[#1E293B] placeholder:text-[#94A3B8] focus-visible:ring-[#378ADD]/20 focus-visible:border-[#378ADD] ${inputErrorClass}`}
+                  className={`h-11 px-4 py-3 bg-[#F1F5F9] border-[#E2E8F0] rounded-[8px] text-[#0F172A] placeholder:text-slate-400 focus-visible:border-[#1D4ED8] focus-visible:ring-2 focus-visible:ring-[#1D4ED8]/20 focus-visible:ring-offset-0 ${inputErrorClass}`}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-slate-600">
+                <Label 
+                  htmlFor="password" 
+                  style={{ color: '#0F172A', fontWeight: '600', fontSize: '13px' }}
+                >
                   Mot de passe
                 </Label>
                 <div className="relative">
@@ -179,12 +394,12 @@ export default function Login() {
                     onChange={(e) => { setPassword(e.target.value); setError(null); }}
                     disabled={isLoading || isLocked}
                     autoComplete="current-password"
-                    className={`h-11 pr-10 bg-white border-[#E2E8F0] text-[#1E293B] placeholder:text-[#94A3B8] focus-visible:ring-[#378ADD]/20 focus-visible:border-[#378ADD] ${inputErrorClass}`}
+                    className={`h-11 px-4 py-3 pr-10 bg-[#F1F5F9] border-[#E2E8F0] rounded-[8px] text-[#0F172A] placeholder:text-slate-400 focus-visible:border-[#1D4ED8] focus-visible:ring-2 focus-visible:ring-[#1D4ED8]/20 focus-visible:ring-offset-0 ${inputErrorClass}`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus-visible:outline-2 focus-visible:outline-[#378ADD] focus-visible:outline-offset-2 rounded"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-400 hover:text-text-200 transition-colors focus-visible:outline-2 focus-visible:outline-[#1D4ED8] rounded"
                     tabIndex={-1}
                     aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                   >
@@ -197,48 +412,285 @@ export default function Login() {
                 </div>
               </div>
 
-              {/* Lien mot de passe oublié */}
-              <div className="flex justify-end -mt-1">
+              {/* Forgot password link */}
+              <div className="flex justify-end -mt-2">
                 <a
                   href="#"
-                  onClick={handleForgotPassword}
-                  className="text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-[#378ADD] focus-visible:outline-offset-2 rounded"
-                  style={{ color: '#378ADD' }}
-                  onMouseEnter={(e) => { e.target.style.color = '#1E3A5F'; }}
-                  onMouseLeave={(e) => { e.target.style.color = '#378ADD'; }}
+                  onClick={(e) => { e.preventDefault(); setError(null); setViewMode('email'); setResetEmail(email); }}
+                  className="text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-[#1D4ED8] rounded no-underline hover:underline"
+                  style={{ color: '#1D4ED8' }}
                 >
                   Mot de passe oublié ?
                 </a>
               </div>
 
-              {/* Bouton Se connecter — bleu marine */}
+              {/* Submit button */}
               <button
                 type="submit"
                 disabled={isLoading || isLocked}
-                className="w-full h-11 text-[15px] font-semibold text-white rounded-lg transition-all duration-150 focus-visible:outline-2 focus-visible:outline-[#378ADD] focus-visible:outline-offset-2 disabled:cursor-not-allowed"
+                className="w-full text-[15px] font-bold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-[#1D4ED8] focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-[1px] active:translate-y-0 hover:brightness-110 active:brightness-95"
                 style={{
-                  backgroundColor: isLoading || isLocked ? '#94A3B8' : '#1E3A5F',
-                  cursor: isLoading || isLocked ? 'not-allowed' : 'pointer',
+                  backgroundColor: '#1D4ED8',
+                  color: '#FFFFFF',
+                  borderRadius: '10px',
+                  height: '52px',
+                  boxShadow: '0 4px 12px rgba(29, 78, 216, 0.2)'
                 }}
-                onMouseEnter={(e) => { if (!isLoading && !isLocked) e.target.style.backgroundColor = '#162E4D'; }}
-                onMouseLeave={(e) => { if (!isLoading && !isLocked) e.target.style.backgroundColor = '#1E3A5F'; }}
-                onMouseDown={(e) => { e.target.style.transform = 'scale(0.99)'; }}
-                onMouseUp={(e) => { e.target.style.transform = 'scale(1)'; }}
               >
                 {isLoading ? (
                   <span className="inline-flex items-center justify-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Connexion en cours...
+                    <Loader2 className="h-4 w-4 animate-spin text-[#FFFFFF]" />
+                    Connexion...
                   </span>
                 ) : (
                   'Se connecter'
                 )}
               </button>
             </form>
-          </CardContent>
-        </Card>
+          )}
 
-        <p className="text-center text-xs text-slate-400 mt-6">
+          {/* VIEW 2: REQUEST OTP (STEP 1) */}
+          {viewMode === 'email' && (
+            <form onSubmit={handleRequestOTP} className="space-y-6 animate-enter">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-slate-500 hover:text-secondary cursor-pointer" onClick={() => setViewMode('login')}>
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="text-xs font-semibold">Retour à la connexion</span>
+                </div>
+                <h2 className="text-lg font-bold text-secondary mt-2">Mot de passe oublié</h2>
+                <p className="text-xs text-slate-400">
+                  Saisissez votre e-mail de Super Administrateur pour recevoir un code de validation OTP.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="reset-email" style={{ color: '#0F172A', fontWeight: '600', fontSize: '13px' }}>
+                  Adresse email
+                </Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  placeholder="superadmin@teranga.sn"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  disabled={isLoading}
+                  className="h-11 px-4 py-3 bg-[#F1F5F9] border-[#E2E8F0] rounded-[8px] text-[#0F172A]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full text-[15px] font-bold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-[#1D4ED8] disabled:opacity-50 hover:-translate-y-[1px] active:translate-y-0"
+                style={{
+                  backgroundColor: '#1D4ED8',
+                  color: '#FFFFFF',
+                  borderRadius: '10px',
+                  height: '52px',
+                }}
+              >
+                {isLoading ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-[#FFFFFF]" />
+                    Envoi en cours...
+                  </span>
+                ) : (
+                  'Envoyer le code OTP'
+                )}
+              </button>
+            </form>
+          )}
+
+          {/* VIEW 3: OTP VERIFICATION (STEP 2) */}
+          {viewMode === 'otp' && (
+            <form onSubmit={handleVerifyOTP} className="space-y-6 animate-enter">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-slate-500 hover:text-secondary cursor-pointer" onClick={() => setViewMode('email')}>
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="text-xs font-semibold">Changer d'email</span>
+                </div>
+                <h2 className="text-lg font-bold text-secondary mt-2">Validation de l'identité</h2>
+                <p className="text-xs text-slate-400">
+                  Un code à 6 chiffres a été envoyé à <strong>{resetEmail}</strong>. Saisissez-le ci-dessous.
+                </p>
+              </div>
+
+              {/* Cases OTP */}
+              <div className="flex justify-between gap-2">
+                {otpValues.map((val, idx) => (
+                  <input
+                    key={idx}
+                    id={`otp-${idx}`}
+                    type="text"
+                    maxLength={1}
+                    value={val}
+                    onChange={(e) => handleOtpChange(idx, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                    disabled={isLoading || otpExpiry <= 0}
+                    className="w-12 h-14 text-center text-xl font-bold rounded-lg border border-slate-200 bg-slate-50 text-secondary focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/25 outline-none transition-all"
+                  />
+                ))}
+              </div>
+
+              {/* Countdown & Resend link */}
+              <div className="flex justify-between items-center text-xs">
+                {otpExpiry > 0 ? (
+                  <span className="text-slate-400 font-medium flex items-center gap-1.5">
+                    Le code expire dans <strong className="text-amber font-mono">{formatTimer(otpExpiry)}</strong>
+                  </span>
+                ) : (
+                  <span className="text-[#EF4444] font-semibold">Le code a expiré</span>
+                )}
+
+                {resendCooldown > 0 ? (
+                  <span className="text-slate-400">Renvoyer dans ({resendCooldown}s)</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResendOTP}
+                    className="text-[#1D4ED8] font-bold hover:underline"
+                  >
+                    Renvoyer le code
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || otpExpiry <= 0}
+                className="w-full text-[15px] font-bold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-[#1D4ED8] disabled:opacity-50 hover:-translate-y-[1px] active:translate-y-0"
+                style={{
+                  backgroundColor: '#1D4ED8',
+                  color: '#FFFFFF',
+                  borderRadius: '10px',
+                  height: '52px',
+                }}
+              >
+                {isLoading ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-[#FFFFFF]" />
+                    Validation...
+                  </span>
+                ) : (
+                  'Valider le code OTP'
+                )}
+              </button>
+            </form>
+          )}
+
+          {/* VIEW 4: RESET PASSWORD (STEP 3) */}
+          {viewMode === 'reset' && (
+            <form onSubmit={handleResetPassword} className="space-y-6 animate-enter">
+              <div className="space-y-2">
+                <h2 className="text-lg font-bold text-secondary">Nouveau mot de passe</h2>
+                <p className="text-xs text-slate-400">
+                  Définissez votre nouveau mot de passe fort pour le compte super administrateur.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-pwd" style={{ color: '#0F172A', fontWeight: '600', fontSize: '13px' }}>
+                  Nouveau mot de passe
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="new-pwd"
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    disabled={isLoading}
+                    className="h-11 px-4 py-3 bg-[#F1F5F9] border-[#E2E8F0] rounded-[8px] text-[#0F172A]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirm-pwd" style={{ color: '#0F172A', fontWeight: '600', fontSize: '13px' }}>
+                  Confirmer le mot de passe
+                </Label>
+                <Input
+                  id="confirm-pwd"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isLoading}
+                  className="h-11 px-4 py-3 bg-[#F1F5F9] border-[#E2E8F0] rounded-[8px] text-[#0F172A]"
+                />
+              </div>
+
+              {/* Password strength UI */}
+              <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-400">Force du mot de passe :</span>
+                  <span className="font-bold" style={{ color: getStrengthColor() }}>
+                    {getStrengthLabel()}
+                  </span>
+                </div>
+                
+                {/* ProgressBar */}
+                <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full transition-all duration-300"
+                    style={{ 
+                      width: `${getStrengthPercent()}%`,
+                      backgroundColor: getStrengthColor() 
+                    }}
+                  />
+                </div>
+
+                {/* Validation checklist */}
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  <div className="flex items-center gap-1">
+                    {pwdChecks.length ? <Check className="h-3 w-3 text-[#10B981]" /> : <X className="h-3 w-3 text-[#EF4444]" />}
+                    <span className={pwdChecks.length ? 'text-[#10B981] font-medium' : 'text-[#EF4444]'}>12+ caractères</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {pwdChecks.uppercase ? <Check className="h-3 w-3 text-[#10B981]" /> : <X className="h-3 w-3 text-[#EF4444]" />}
+                    <span className={pwdChecks.uppercase ? 'text-[#10B981] font-medium' : 'text-[#EF4444]'}>1 Majuscule</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {pwdChecks.number ? <Check className="h-3 w-3 text-[#10B981]" /> : <X className="h-3 w-3 text-[#EF4444]" />}
+                    <span className={pwdChecks.number ? 'text-[#10B981] font-medium' : 'text-[#EF4444]'}>1 Chiffre</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {pwdChecks.special ? <Check className="h-3 w-3 text-[#10B981]" /> : <X className="h-3 w-3 text-[#EF4444]" />}
+                    <span className={pwdChecks.special ? 'text-[#10B981] font-medium' : 'text-[#EF4444]'}>1 Car. spécial</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || getStrengthPercent() < 100}
+                className="w-full text-[15px] font-bold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-[#1D4ED8] disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-[1px] active:translate-y-0"
+                style={{
+                  backgroundColor: '#1D4ED8',
+                  color: '#FFFFFF',
+                  borderRadius: '10px',
+                  height: '52px',
+                }}
+              >
+                {isLoading ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-[#FFFFFF]" />
+                    Mise à jour...
+                  </span>
+                ) : (
+                  'Mettre à jour le mot de passe'
+                )}
+              </button>
+            </form>
+          )}
+        </div>
+
+        <p className="text-center text-xs text-text-500 mt-6 font-medium">
           © 2026 Teranga Civil — République du Sénégal
         </p>
       </div>
