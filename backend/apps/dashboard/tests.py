@@ -1,108 +1,126 @@
+import csv
+from io import StringIO
+from datetime import timedelta
+from django.utils import timezone
+
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
+
 from apps.communes.models import Commune
 from apps.dossiers.models import Dossier
 
 User = get_user_model()
 
-import unittest
 
-@unittest.skip("Ignored due to merge conflict resolution (kept Kalz/HEAD dashboard views)")
-class DashboardAPITests(APITestCase):
+class DashboardTests(APITestCase):
 
     def setUp(self):
-        # Create communes
-        self.commune_a = Commune.objects.create(name="Commune A", region="Dakar", department="Dakar", code="DK01")
-        self.commune_b = Commune.objects.create(name="Commune B", region="Thiès", department="Thiès", code="TH01")
-
-        # Create users
-        self.super_admin = User.objects.create_user(
-            email="super@test.com", password="password123", first_name="Super", last_name="Admin",
-            role="super_admin"
-        )
-        self.agent_a = User.objects.create_user(
-            email="agent_a@test.com", password="password123", first_name="Agent", last_name="A",
-            role="civil_admin", commune=self.commune_a
-        )
-        self.agent_b = User.objects.create_user(
-            email="agent_b@test.com", password="password123", first_name="Agent", last_name="B",
-            role="civil_admin", commune=self.commune_b
+        self.commune_dakar = Commune.objects.create(name="Dakar", code="DK01")
+        self.admin = User.objects.create_user(
+            email="admin@test.com", password="password123",
+            role="civil_admin", first_name="Moussa", last_name="Diallo"
         )
         self.citizen = User.objects.create_user(
-            email="citizen@test.com", password="password123", first_name="Citizen", last_name="C",
-            role="citizen"
+            email="citoyen@test.com", password="password123",
+            role="citizen", first_name="Jean", last_name="Dupont"
         )
 
-        # Create dossiers
-        # 2 dossiers in Commune A (1 approved, 1 submitted)
-        self.dossier_a1 = Dossier.objects.create(
-            type="birth_certificate", citizen=self.citizen, commune=self.commune_a, status="approved"
+        now = timezone.now()
+
+        # Dossier approuvé (Commune Dakar, Agent Moussa Diallo, Type Birth)
+        self.dossier_1 = Dossier.objects.create(
+            citizen=self.citizen,
+            commune=self.commune_dakar,
+            assigned_agent=self.admin,
+            status=Dossier.Status.APPROVED,
+            type=Dossier.Type.BIRTH_CERTIFICATE,
+            submitted_at=now - timedelta(days=2),
+            completed_at=now
         )
-        self.dossier_a2 = Dossier.objects.create(
-            type="marriage_certificate", citizen=self.citizen, commune=self.commune_a, status="submitted"
-        )
-        # 1 dossier in Commune B (rejected)
-        self.dossier_b1 = Dossier.objects.create(
-            type="birth_certificate", citizen=self.citizen, commune=self.commune_b, status="rejected"
+        
+        # Dossier rejeté (Type Marriage)
+        self.dossier_2 = Dossier.objects.create(
+            citizen=self.citizen,
+            commune=self.commune_dakar,
+            assigned_agent=self.admin,
+            status=Dossier.Status.REJECTED,
+            type=Dossier.Type.MARRIAGE_CERTIFICATE,
+            submitted_at=now - timedelta(days=1),
+            completed_at=now
         )
 
-    def test_unauthenticated_access_denied(self):
+    def test_dashboard_stats(self):
+        """Vérifie l'enrichissement du dashboard (KPIs 1 à 5)."""
+        self.client.force_authenticate(user=self.admin)
         url = reverse('dashboard-stats')
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data['data']
+        
+        # KPI 1 : Dossiers par type
+        self.assertIn('dossiers_by_type', data)
+        self.assertEqual(data['dossiers_by_type']['birth_certificate'], 1)
+        self.assertEqual(data['dossiers_by_type']['marriage_certificate'], 1)
+        
+        # KPI 2 : Dossiers par commune (Top 5)
+        self.assertIn('dossiers_by_commune', data)
+        self.assertEqual(data['dossiers_by_commune'][0]['commune'], "Dakar")
+        self.assertEqual(data['dossiers_by_commune'][0]['count'], 2)
+        
+        # KPI 3 : Agents les plus actifs
+        self.assertIn('top_agents', data)
+        self.assertEqual(data['top_agents'][0]['agent'], "Moussa Diallo")
+        self.assertEqual(data['top_agents'][0]['dossiers_traites'], 2)
+        
+        # KPI 4 : Taux d'approbation
+        self.assertIn('taux_approbation', data)
+        self.assertEqual(data['taux_approbation'], 50.0) # 1 approuvé sur 2
 
-    def test_citizen_access_forbidden(self):
+    def test_export_csv_auth(self):
+        """Vérifie que l'export n'est accessible qu'aux admins."""
+        url = reverse('export-csv')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        
         self.client.force_authenticate(user=self.citizen)
-        url = reverse('dashboard-stats')
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_super_admin_sees_all_stats(self):
-        self.client.force_authenticate(user=self.super_admin)
-        url = reverse('dashboard-stats')
+    def test_export_csv_content(self):
+        """Vérifie la génération et le contenu du CSV."""
+        self.client.force_authenticate(user=self.admin)
+        url = reverse('export-csv')
         response = self.client.get(url)
+        
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['success'])
-        self.assertEqual(response.data['data']['total_dossiers'], 3)
-        self.assertEqual(response.data['data']['dossiers_validated'], 1)
-        self.assertEqual(response.data['data']['dossiers_rejected'], 1)
-        self.assertEqual(response.data['data']['dossiers_pending'], 1)
+        self.assertEqual(response['Content-Type'], 'text/csv')
+        
+        content = response.content.decode('utf-8')
+        reader = csv.DictReader(StringIO(content))
+        rows = list(reader)
+        
+        self.assertEqual(len(rows), 2)
+        self.assertIn('reference', rows[0])
+        self.assertIn('citoyen', rows[0])
+        self.assertEqual(rows[0]['commune'], 'Dakar')
+        self.assertEqual(rows[0]['citoyen'], 'Jean Dupont')
 
-    def test_agent_a_commune_isolation(self):
-        self.client.force_authenticate(user=self.agent_a)
-        url = reverse('dashboard-stats')
+    def test_export_csv_filtering(self):
+        """Vérifie le filtrage par date_debut et date_fin."""
+        self.client.force_authenticate(user=self.admin)
+        
+        today = timezone.now().strftime('%Y-%m-%d')
+        url = reverse('export-csv') + f"?date_debut={today}&date_fin={today}"
+        
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Agent A should only see Commune A dossiers (2 total)
-        self.assertEqual(response.data['data']['total_dossiers'], 2)
-        self.assertEqual(response.data['data']['dossiers_validated'], 1)
-        self.assertEqual(response.data['data']['dossiers_pending'], 1)
-        self.assertEqual(response.data['data']['dossiers_rejected'], 0)
-
-    def test_agent_b_commune_isolation(self):
-        self.client.force_authenticate(user=self.agent_b)
-        url = reverse('dashboard-stats')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Agent B should only see Commune B dossiers (1 total)
-        self.assertEqual(response.data['data']['total_dossiers'], 1)
-        self.assertEqual(response.data['data']['dossiers_validated'], 0)
-        self.assertEqual(response.data['data']['dossiers_rejected'], 1)
-
-    def test_kpis_endpoint_agent_a(self):
-        self.client.force_authenticate(user=self.agent_a)
-        url = reverse('dashboard-kpis')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('avg_processing_time_hours', response.data['data'])
-        self.assertIn('rejection_rate_percent', response.data['data'])
-
-    def test_charts_endpoint_agent_a(self):
-        self.client.force_authenticate(user=self.agent_a)
-        url = reverse('dashboard-charts')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('daily_volume', response.data['data'])
-        self.assertIn('status_distribution', response.data['data'])
+        
+        content = response.content.decode('utf-8')
+        reader = csv.DictReader(StringIO(content))
+        rows = list(reader)
+        
+        # Aucun dossier n'a été soumis aujourd'hui (ils ont été soumis à now - 2 jours et now - 1 jour)
+        self.assertEqual(len(rows), 0)

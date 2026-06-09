@@ -12,6 +12,7 @@ from apps.shared.responses import success_response
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema
 
 from .models import Notification, DeviceToken
 from .serializers import NotificationSerializer, CitizenNotificationSerializer
@@ -45,6 +46,11 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save()
 
+    @extend_schema(
+        tags=['Notifications'],
+        summary='Marquer une notification comme lue',
+        responses={200: NotificationSerializer}
+    )
     @action(detail=True, methods=['post'], url_path='mark-read')
     def mark_read(self, request, pk=None):
         """Mark a notification as read."""
@@ -61,6 +67,11 @@ class NotificationViewSet(viewsets.ModelViewSet):
             "id": str(notification.id)
         })
 
+    @extend_schema(
+        tags=['Notifications'],
+        summary='Lister les notifications',
+        responses={200: NotificationSerializer(many=True)}
+    )
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
