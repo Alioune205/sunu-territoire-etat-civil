@@ -102,6 +102,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apps.audit_logs.middleware.AuditLogMiddleware',
     'apps.payments.middleware.ReadOnlyForSuperAdminMiddleware',
+    'apps.system.middleware.PerformanceMonitoringMiddleware',
 ]
 
 # ==============================================================================
@@ -359,19 +360,21 @@ LOGGING = {
         },
         'error_file': {
             'level': 'ERROR',
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': LOGS_DIR / 'errors.log',
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 5,
             'formatter': 'verbose',
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'system_file'],
+            'handlers': ['console', 'system_file', 'error_file'],
             'level': 'INFO',
             'propagate': True,
         },
         'system': {
-            'handlers': ['console', 'system_file'],
+            'handlers': ['console', 'system_file', 'error_file'],
             'level': 'INFO',
             'propagate': False,
         },
