@@ -159,3 +159,40 @@ class LoginHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = LoginHistory
         fields = ['id', 'ip_address', 'user_agent', 'login_time']
+
+import re
+
+def validate_strong_password(value):
+    if len(value) < 12:
+        raise serializers.ValidationError("Le mot de passe doit faire au moins 12 caractères.")
+    if not re.search(r'[A-Z]', value):
+        raise serializers.ValidationError("Le mot de passe doit contenir au moins une lettre majuscule.")
+    if not re.search(r'\d', value):
+        raise serializers.ValidationError("Le mot de passe doit contenir au moins un chiffre.")
+    if not re.search(r'[^a-zA-Z0-9]', value):
+        raise serializers.ValidationError("Le mot de passe doit contenir au moins un caractère spécial.")
+    return value
+
+class SuperAdminOTPRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, value):
+        user = User.objects.filter(email=value).first()
+        if not user:
+            raise serializers.ValidationError("Aucun utilisateur trouvé avec cet e-mail.")
+        if user.role != 'super_admin':
+            raise serializers.ValidationError("Cet e-mail n'est pas associé à un compte super administrateur.")
+        return value
+
+class SuperAdminOTPVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    code = serializers.CharField(required=True, max_length=6, min_length=6)
+
+class SuperAdminPasswordResetSerializer(serializers.Serializer):
+    reset_token = serializers.CharField(required=True)
+    new_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        validators=[validate_strong_password]
+    )
+

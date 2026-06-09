@@ -301,6 +301,26 @@ class DossierViewSet(viewsets.ModelViewSet):
             message='Dossier rejeté.',
         )
 
+    @extend_schema(tags=['Dossiers'], summary='Terminer un dossier')
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsCivilAdmin])
+    def complete(self, request, pk=None):
+        """POST /api/dossiers/{id}/complete/ — Mark as completed."""
+        dossier = self.get_object()
+
+        if dossier.status != Dossier.Status.APPROVED:
+            return error_response(
+                message='Seul un dossier approuvé peut être marqué comme terminé.',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        dossier.status = Dossier.Status.COMPLETED
+        dossier.save(update_fields=['status', 'updated_at'])
+
+        return success_response(
+            data=DossierDetailSerializer(dossier).data,
+            message='Dossier marqué comme terminé.',
+        )
+
     # =====================================================
     # COMMENTS
     # =====================================================

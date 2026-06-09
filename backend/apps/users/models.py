@@ -19,9 +19,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     class Role(models.TextChoices):
         CITIZEN = 'citizen', 'Citoyen'
-        RECEPTION_AGENT = 'reception_agent', 'Agent de r├®ception'
-        VERIFICATION_AGENT = 'verification_agent', 'Agent de v├®rification'
-        CIVIL_ADMIN = 'civil_admin', 'Administrateur d\'├®tat civil'
+        RECEPTION_AGENT = 'reception_agent', 'Agent de réception'
+        VERIFICATION_AGENT = 'verification_agent', 'Agent de vérification'
+        CIVIL_ADMIN = 'civil_admin', 'Administrateur d\'état civil'
         SUPER_ADMIN = 'super_admin', 'Super administrateur'
 
     id = models.UUIDField(
@@ -39,11 +39,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
         null=True,
         validators=[validate_phone_senegal],
-        verbose_name='T├®l├®phone',
+        verbose_name='Téléphone',
     )
     first_name = models.CharField(
         max_length=100,
-        verbose_name='Pr├®nom',
+        verbose_name='Prénom',
     )
     last_name = models.CharField(
         max_length=100,
@@ -53,7 +53,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         max_length=25,
         choices=Role.choices,
         default=Role.CITIZEN,
-        verbose_name='R├┤le',
+        verbose_name='Rôle',
         db_index=True,
     )
     commune = models.ForeignKey(
@@ -66,7 +66,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     is_verified = models.BooleanField(
         default=False,
-        verbose_name='V├®rifi├®',
+        verbose_name='Vérifié',
     )
     is_active = models.BooleanField(
         default=True,
@@ -78,7 +78,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
-        verbose_name='Date de cr├®ation',
+        verbose_name='Date de création',
     )
     updated_at = models.DateTimeField(
         auto_now=True,
@@ -127,7 +127,7 @@ class CitizenProfile(models.Model):
 
     class Gender(models.TextChoices):
         MALE = 'M', 'Masculin'
-        FEMALE = 'F', 'F├®minin'
+        FEMALE = 'F', 'Féminin'
 
     id = models.UUIDField(
         primary_key=True,
@@ -151,7 +151,7 @@ class CitizenProfile(models.Model):
         blank=True,
         null=True,
         validators=[validate_cni],
-        verbose_name='Num├®ro CNI',
+        verbose_name='Numéro CNI',
     )
     date_of_birth = models.DateField(
         null=True,
@@ -191,7 +191,7 @@ class CitizenProfile(models.Model):
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
-        verbose_name='Date de cr├®ation',
+        verbose_name='Date de création',
     )
     updated_at = models.DateTimeField(
         auto_now=True,
@@ -205,7 +205,7 @@ class CitizenProfile(models.Model):
 
 class OTPCode(models.Model):
     """
-    Mod├¿le pour g├®rer les codes OTP (One Time Password) pour la v├®rification de t├®l├®phone/email.
+    Modèle pour gérer les codes OTP (One Time Password) pour la vérification de téléphone/email.
     """
     id = models.UUIDField(
         primary_key=True,
@@ -214,8 +214,8 @@ class OTPCode(models.Model):
     )
     identifier = models.CharField(
         max_length=100,
-        verbose_name='Identifiant (Email ou T├®l├®phone)',
-        help_text='Le num├®ro de t├®l├®phone ou email ├á v├®rifier',
+        verbose_name='Identifiant (Email ou Téléphone)',
+        help_text='Le numéro de téléphone ou email à vérifier',
     )
     code = models.CharField(
         max_length=6,
@@ -223,14 +223,14 @@ class OTPCode(models.Model):
     )
     is_used = models.BooleanField(
         default=False,
-        verbose_name='Est utilis├®',
+        verbose_name='Est utilisé',
     )
     expires_at = models.DateTimeField(
         verbose_name="Date d'expiration",
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
-        verbose_name='Date de cr├®ation',
+        verbose_name='Date de création',
     )
 
     class Meta:
@@ -252,7 +252,7 @@ class OTPCode(models.Model):
 
 class LoginHistory(models.Model):
     """
-    Mod├¿le pour stocker l'historique de connexion des utilisateurs.
+    Modèle pour stocker l'historique de connexion des utilisateurs.
     """
     id = models.UUIDField(
         primary_key=True,
@@ -286,4 +286,4 @@ class LoginHistory(models.Model):
         ordering = ['-login_time']
 
     def __str__(self):
-        return f"{self.user.email} connect├® ├á {self.login_time}"
+        return f"{self.user.email} connecté à {self.login_time}"
