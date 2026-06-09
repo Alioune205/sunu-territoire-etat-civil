@@ -19,9 +19,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     class Role(models.TextChoices):
         CITIZEN = 'citizen', 'Citoyen'
-        RECEPTION_AGENT = 'reception_agent', 'Agent de réception'
-        VERIFICATION_AGENT = 'verification_agent', 'Agent de vérification'
-        CIVIL_ADMIN = 'civil_admin', 'Administrateur d\'état civil'
+        RECEPTION_AGENT = 'reception_agent', 'Agent de r├®ception'
+        VERIFICATION_AGENT = 'verification_agent', 'Agent de v├®rification'
+        CIVIL_ADMIN = 'civil_admin', 'Administrateur d\'├®tat civil'
         SUPER_ADMIN = 'super_admin', 'Super administrateur'
 
     id = models.UUIDField(
@@ -39,11 +39,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
         null=True,
         validators=[validate_phone_senegal],
-        verbose_name='Téléphone',
+        verbose_name='T├®l├®phone',
     )
     first_name = models.CharField(
         max_length=100,
-        verbose_name='Prénom',
+        verbose_name='Pr├®nom',
     )
     last_name = models.CharField(
         max_length=100,
@@ -53,7 +53,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         max_length=25,
         choices=Role.choices,
         default=Role.CITIZEN,
-        verbose_name='Rôle',
+        verbose_name='R├┤le',
         db_index=True,
     )
     commune = models.ForeignKey(
@@ -66,7 +66,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     is_verified = models.BooleanField(
         default=False,
-        verbose_name='Vérifié',
+        verbose_name='V├®rifi├®',
     )
     is_active = models.BooleanField(
         default=True,
@@ -78,7 +78,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
-        verbose_name='Date de création',
+        verbose_name='Date de cr├®ation',
     )
     updated_at = models.DateTimeField(
         auto_now=True,
@@ -127,7 +127,7 @@ class CitizenProfile(models.Model):
 
     class Gender(models.TextChoices):
         MALE = 'M', 'Masculin'
-        FEMALE = 'F', 'Féminin'
+        FEMALE = 'F', 'F├®minin'
 
     id = models.UUIDField(
         primary_key=True,
@@ -151,170 +151,7 @@ class CitizenProfile(models.Model):
         blank=True,
         null=True,
         validators=[validate_cni],
-        verbose_name='Numéro CNI',
-    )
-    date_of_birth = models.DateField(
-        null=True,
-        blank=True,
-        verbose_name='Date de naissance',
-    )
-    place_of_birth = models.CharField(
-        max_length=100,
-        blank=True,
-"""
-User and CitizenProfile models for TERANGA CIVIL.
-"""
-import uuid
-from django.utils import timezone
-
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
-from django.db import models
-
-from ..shared.validators import validate_phone_senegal, validate_cni
-from .managers import CustomUserManager
-
-
-class User(AbstractBaseUser, PermissionsMixin):
-    """
-    Custom User model using email as the unique identifier.
-    Supports RBAC via the `role` field.
-    """
-
-    class Role(models.TextChoices):
-        CITIZEN = 'citizen', 'Citoyen'
-        RECEPTION_AGENT = 'reception_agent', 'Agent de réception'
-        VERIFICATION_AGENT = 'verification_agent', 'Agent de vérification'
-        CIVIL_ADMIN = 'civil_admin', 'Administrateur d\'état civil'
-        SUPER_ADMIN = 'super_admin', 'Super administrateur'
-
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-    )
-    email = models.EmailField(
-        unique=True,
-        verbose_name='Adresse email',
-    )
-    phone = models.CharField(
-        max_length=20,
-        unique=True,
-        blank=True,
-        null=True,
-        validators=[validate_phone_senegal],
-        verbose_name='Téléphone',
-    )
-    first_name = models.CharField(
-        max_length=100,
-        verbose_name='Prénom',
-    )
-    last_name = models.CharField(
-        max_length=100,
-        verbose_name='Nom',
-    )
-    role = models.CharField(
-        max_length=25,
-        choices=Role.choices,
-        default=Role.CITIZEN,
-        verbose_name='Rôle',
-        db_index=True,
-    )
-    commune = models.ForeignKey(
-        'communes.Commune',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='users',
-        verbose_name='Commune',
-    )
-    is_verified = models.BooleanField(
-        default=False,
-        verbose_name='Vérifié',
-    )
-    is_active = models.BooleanField(
-        default=True,
-        verbose_name='Actif',
-    )
-    is_staff = models.BooleanField(
-        default=False,
-        verbose_name='Staff',
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='Date de création',
-    )
-    updated_at = models.DateTimeField(
-        auto_now=True,
-        verbose_name='Date de modification',
-    )
-
-    objects = CustomUserManager()
-
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['first_name', 'last_name']
-
-    class Meta:
-        verbose_name = 'Utilisateur'
-        verbose_name_plural = 'Utilisateurs'
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['email']),
-            models.Index(fields=['role']),
-            models.Index(fields=['commune']),
-            models.Index(fields=['is_active']),
-        ]
-
-    def __str__(self):
-        return f'{self.first_name} {self.last_name} ({self.email})'
-
-    @property
-    def full_name(self):
-        return f'{self.first_name} {self.last_name}'
-
-    @property
-    def is_admin_staff(self):
-        """Check if user has any administrative role."""
-        return self.role in [
-            self.Role.RECEPTION_AGENT,
-            self.Role.VERIFICATION_AGENT,
-            self.Role.CIVIL_ADMIN,
-            self.Role.SUPER_ADMIN,
-        ]
-
-
-class CitizenProfile(models.Model):
-    """
-    Extended profile for citizens with personal information.
-    Auto-created when a citizen user is registered.
-    """
-
-    class Gender(models.TextChoices):
-        MALE = 'M', 'Masculin'
-        FEMALE = 'F', 'Féminin'
-
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-    )
-    user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        related_name='profile',
-        verbose_name='Utilisateur',
-    )
-    address = models.TextField(
-        blank=True,
-        default='',
-        verbose_name='Adresse',
-    )
-    cni_number = models.CharField(
-        max_length=20,
-        unique=True,
-        blank=True,
-        null=True,
-        validators=[validate_cni],
-        verbose_name='Numéro CNI',
+        verbose_name='Num├®ro CNI',
     )
     date_of_birth = models.DateField(
         null=True,
@@ -354,7 +191,7 @@ class CitizenProfile(models.Model):
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
-        verbose_name='Date de création',
+        verbose_name='Date de cr├®ation',
     )
     updated_at = models.DateTimeField(
         auto_now=True,
@@ -368,7 +205,7 @@ class CitizenProfile(models.Model):
 
 class OTPCode(models.Model):
     """
-    Modèle pour gérer les codes OTP (One Time Password) pour la vérification de téléphone/email.
+    Mod├¿le pour g├®rer les codes OTP (One Time Password) pour la v├®rification de t├®l├®phone/email.
     """
     id = models.UUIDField(
         primary_key=True,
@@ -377,8 +214,8 @@ class OTPCode(models.Model):
     )
     identifier = models.CharField(
         max_length=100,
-        verbose_name='Identifiant (Email ou Téléphone)',
-        help_text='Le numéro de téléphone ou email à vérifier',
+        verbose_name='Identifiant (Email ou T├®l├®phone)',
+        help_text='Le num├®ro de t├®l├®phone ou email ├á v├®rifier',
     )
     code = models.CharField(
         max_length=6,
@@ -386,14 +223,14 @@ class OTPCode(models.Model):
     )
     is_used = models.BooleanField(
         default=False,
-        verbose_name='Est utilisé',
+        verbose_name='Est utilis├®',
     )
     expires_at = models.DateTimeField(
         verbose_name="Date d'expiration",
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
-        verbose_name='Date de création',
+        verbose_name='Date de cr├®ation',
     )
 
     class Meta:
@@ -415,7 +252,7 @@ class OTPCode(models.Model):
 
 class LoginHistory(models.Model):
     """
-    Modèle pour stocker l'historique de connexion des utilisateurs.
+    Mod├¿le pour stocker l'historique de connexion des utilisateurs.
     """
     id = models.UUIDField(
         primary_key=True,
@@ -449,4 +286,4 @@ class LoginHistory(models.Model):
         ordering = ['-login_time']
 
     def __str__(self):
-        return f"{self.user.email} connecté à {self.login_time}"
+        return f"{self.user.email} connect├® ├á {self.login_time}"
