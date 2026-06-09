@@ -248,7 +248,7 @@ class DossierViewSet(viewsets.ModelViewSet):
     @extend_schema(tags=['Dossiers'], summary='Approuver un dossier')
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsCivilAdmin])
     def approve(self, request, pk=None):
-        """POST /api/dossiers/{id}/approve/ — Approve the dossier."""
+        """POST /api/dossiers/{id}/approve/ — Approve the dossier and generate signed certificate."""
         dossier = self.get_object()
 
         if dossier.status != Dossier.Status.IN_REVIEW:
@@ -261,14 +261,16 @@ class DossierViewSet(viewsets.ModelViewSet):
         dossier.completed_at = timezone.now()
         dossier.save(update_fields=['status', 'completed_at', 'updated_at'])
 
-        # Génération du PDF avec QR Code (DEV 1B)
-        from apps.dossiers.services.pdf_generator import generate_dossier_pdf
+        # Génération du certificat PDF signé cryptographiquement
+        from apps.dossiers.services.pdf_generator import generate_signed_certificate
         try:
-            document = generate_dossier_pdf(dossier)
-            msg = f'Dossier approuvé avec succès et document {document.original_filename} généré.'
+            cert = generate_signed_certificate(dossier, officier=request.user)
+            msg = (
+                f'Dossier approuvé. Certificat {cert.dossier.reference} généré '
+                f'avec signature HMAC et timbre {cert.timbre.reference}.'
+            )
         except Exception as e:
-            # S'il y a une erreur lors de la génération du PDF, on logge mais on ne bloque pas l'approbation
-            msg = f'Dossier approuvé, mais erreur lors de la génération du PDF : {str(e)}'
+            msg = f'Dossier approuvé, mais erreur lors de la génération du certificat : {str(e)}'
 
         return success_response(
             data=DossierDetailSerializer(dossier).data,

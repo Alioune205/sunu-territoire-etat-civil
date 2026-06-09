@@ -105,3 +105,111 @@ class Document(TimeStampedModel):
             else:
                 self.file_type = self.FileType.SCAN
         super().save(*args, **kwargs)
+
+
+def certificate_upload_path(instance, filename):
+    """Generate upload path: certificates/<dossier_ref>/<filename>"""
+    return f'certificates/{instance.dossier.reference}/{filename}'
+
+
+class TimbreFiscal(TimeStampedModel):
+    """
+    Timbre fiscal fictif lié à un certificat généré.
+    Chaque timbre est unique et traçable.
+    """
+    import uuid as _uuid
+
+    id = models.UUIDField(primary_key=True, default=_uuid.uuid4, editable=False)
+    reference = models.CharField(
+        max_length=30, unique=True,
+        verbose_name='Référence du timbre',
+    )
+    montant = models.DecimalField(
+        max_digits=10, decimal_places=2, default=500.00,
+        verbose_name='Montant (FCFA)',
+    )
+    is_used = models.BooleanField(default=False, verbose_name='Utilisé')
+
+    class Meta:
+        verbose_name = 'Timbre Fiscal'
+        verbose_name_plural = 'Timbres Fiscaux'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.reference} — {self.montant} FCFA'
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            import uuid
+            self.reference = f'TIM-{uuid.uuid4().hex[:8].upper()}'
+        super().save(*args, **kwargs)
+
+
+class GeneratedCertificate(TimeStampedModel):
+    """
+    Certificat officiel généré (PDF) avec liaison cryptographique.
+    Le hash inclut les données du dossier ET le hash SHA-256 du PDF lui-même,
+    empêchant toute falsification du document physique.
+    """
+    import uuid as _uuid
+
+    id = models.UUIDField(primary_key=True, default=_uuid.uuid4, editable=False)
+    dossier = models.OneToOneField(
+        'dossiers.Dossier',
+        on_delete=models.CASCADE,
+        related_name='certificate',
+        verbose_name='Dossier',
+    )
+    officier = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='signed_certificates',
+        verbose_name='Officier signataire',
+    )
+    pdf_file = models.FileField(
+        upload_to=certificate_upload_path,
+        verbose_name='Fichier PDF',
+    )
+    # Cryptographic fields
+    data_payload = models.TextField(
+        verbose_name='Payload signé (données brutes)',
+        help_text='ref|commune|nom|date_naissance|officier_id|pdf_sha256',
+    )
+    pdf_sha256 = models.CharField(
+        max_length=64,
+        verbose_name='Hash SHA-256 du PDF',
+    )
+    hmac_signature = models.CharField(
+        max_length=64,
+        verbose_name='Signature HMAC-SHA256',
+    )
+    timbre = models.OneToOneField(
+        TimbreFiscal,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='certificate',
+        verbose_name='Timbre fiscal',
+    )
+    # Seal/stamp metadata
+    cachet_communal_svg = models.CharField(
+        max_length=255, blank=True, default='',
+        verbose_name='Chemin SVG cachet communal',
+    )
+    signature_officier_svg = models.CharField(
+        max_length=255, blank=True, default='',
+        verbose_name='Chemin SVG signature officier',
+    )
+
+    class Meta:
+        verbose_name = 'Certificat Généré'
+        verbose_name_plural = 'Certificats Générés'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['dossier']),
+            models.Index(fields=['hmac_signature']),
+        ]
+
+    def __str__(self):
+        return f'Certificat {self.dossier.reference} — signé par {self.officier}'
+
