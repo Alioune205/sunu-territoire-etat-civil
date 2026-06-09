@@ -20,6 +20,7 @@ class CitizenProfileSerializer(serializers.ModelSerializer):
             'gender',
             'profession',
             'photo',
+            'cni_document',
             'created_at',
             'updated_at',
         ]
@@ -105,6 +106,7 @@ class CitizenProfileDetailSerializer(serializers.ModelSerializer):
             'gender',
             'profession',
             'photo',
+            'cni_document',
             'created_at',
             'updated_at',
         ]
