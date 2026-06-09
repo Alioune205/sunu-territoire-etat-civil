@@ -23,6 +23,11 @@ SECRET_KEY = config(
     default='django-insecure-dev-key-change-in-production'
 )
 
+GROQ_API_KEY = config(
+    'GROQ_API_KEY',
+    default=''
+)
+
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
     default='localhost,127.0.0.1',
@@ -211,6 +216,8 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',
         'user': '1000/hour',
+        'login': '5/minute', # Anti brute-force pour le login
+        'otp': '3/minute',   # Anti-spam pour l'envoi d'OTP
     },
 
     # Schema

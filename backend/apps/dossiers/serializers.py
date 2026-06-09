@@ -37,6 +37,10 @@ class DossierCreateSerializer(serializers.ModelSerializer):
             'type',
             'commune',
             'notes',
+            'is_for_third_party',
+            'third_party_cni',
+            'third_party_relation',
+            'metadata',
         ]
 
     def create(self, validated_data):
@@ -68,6 +72,8 @@ class DossierListSerializer(serializers.ModelSerializer):
             'agent_name',
             'commune',
             'commune_name',
+            'is_for_third_party',
+            'metadata',
             'submitted_at',
             'created_at',
         ]
@@ -102,6 +108,10 @@ class DossierDetailSerializer(serializers.ModelSerializer):
             'commune',
             'commune_name',
             'notes',
+            'is_for_third_party',
+            'third_party_cni',
+            'third_party_relation',
+            'metadata',
             'rejection_reason',
             'submitted_at',
             'reviewed_at',

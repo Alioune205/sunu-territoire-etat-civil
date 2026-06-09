@@ -9,7 +9,7 @@ from drf_spectacular.utils import extend_schema
 
 from .ocr import extract_text_from_image
 from .validators import validate_citizen_document, check_dossier_duplicate
-from .faq import get_faq_answer
+from .chatbot import chat_orchestrator
 
 class OcrValidationView(APIView):
     permission_classes = [IsAuthenticated]
@@ -48,14 +48,19 @@ class OcrValidationView(APIView):
 class FAQAssistantView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(tags=['AI & OCR'], summary="Poser une question à l'assistant FAQ")
+    @extend_schema(tags=['AI & OCR'], summary="Poser une question à l'assistant IA (RAG+)")
     def post(self, request, *args, **kwargs):
         question = request.data.get('question', '')
+        chat_history = request.data.get('chat_history', [])
         
         if not question:
             return Response({'error': 'Veuillez poser une question.'}, status=400)
             
-        answer = get_faq_answer(question)
+        answer = chat_orchestrator(
+            user=request.user,
+            user_message=question,
+            chat_history=chat_history
+        )
         
         return Response({
             'question': question,

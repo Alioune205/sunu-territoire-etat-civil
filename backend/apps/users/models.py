@@ -2,6 +2,7 @@
 User and CitizenProfile models for TERANGA CIVIL.
 """
 import uuid
+from django.utils import timezone
 
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
@@ -193,7 +194,90 @@ class CitizenProfile(models.Model):
 
     class Meta:
         verbose_name = 'Profil citoyen'
-        verbose_name_plural = 'Profils citoyens'
+
+
+
+class OTPCode(models.Model):
+    """
+    Modèle pour gérer les codes OTP (One Time Password) pour la vérification de téléphone/email.
+    """
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    identifier = models.CharField(
+        max_length=100,
+        verbose_name='Identifiant (Email ou Téléphone)',
+        help_text='Le numéro de téléphone ou email à vérifier',
+    )
+    code = models.CharField(
+        max_length=6,
+        verbose_name='Code OTP',
+    )
+    is_used = models.BooleanField(
+        default=False,
+        verbose_name='Est utilisé',
+    )
+    expires_at = models.DateTimeField(
+        verbose_name="Date d'expiration",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Date de création',
+    )
+
+    class Meta:
+        verbose_name = 'Code OTP'
+        verbose_name_plural = 'Codes OTP'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['identifier', 'code']),
+            models.Index(fields=['is_used']),
+        ]
 
     def __str__(self):
-        return f'Profil de {self.user.full_name}'
+        return f'OTP {self.code} pour {self.identifier}'
+
+    @property
+    def is_valid(self):
+        return not self.is_used and timezone.now() <= self.expires_at
+
+
+class LoginHistory(models.Model):
+    """
+    Modèle pour stocker l'historique de connexion des utilisateurs.
+    """
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='login_history',
+        verbose_name='Utilisateur'
+    )
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        verbose_name='Adresse IP'
+    )
+    user_agent = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name='User Agent'
+    )
+    login_time = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Date et heure de connexion'
+    )
+    
+    class Meta:
+        verbose_name = 'Historique de connexion'
+        verbose_name_plural = 'Historiques de connexion'
+        ordering = ['-login_time']
+
+    def __str__(self):
+        return f"{self.user.email} connecté à {self.login_time}"

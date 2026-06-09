@@ -7,7 +7,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
-from drf_spectacular.utils import extend_schema_view, extend_schema
+from drf_spectacular.utils import extend_schema_view, extend_schema, OpenApiResponse
 
 from django.contrib.auth import get_user_model
 
@@ -18,7 +18,7 @@ from apps.shared.permissions import (
 )
 from apps.shared.responses import success_response, error_response
 
-from .models import Dossier
+from .models import Dossier, RegistreCivil
 from .serializers import (
     DossierCreateSerializer,
     DossierListSerializer,
@@ -112,6 +112,69 @@ class DossierViewSet(viewsets.ModelViewSet):
         return success_response(
             data=DossierDetailSerializer(instance).data,
             message='Dossier mis à jour avec succès.',
+        )
+
+    @extend_schema(
+        tags=['Dossiers'],
+        summary="Vérifier l'existence d'un acte dans le Registre Civil",
+        description="Vérifie si le numéro et l'année existent. Valide aussi la correspondance du nom ou de la CNI.",
+        responses={
+            200: OpenApiResponse(description='Acte trouvé et vérifié. Veuillez demander la date de naissance pour confirmer.'),
+            400: OpenApiResponse(description='Acte non trouvé ou non correspondant.'),
+        },
+    )
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsCitizen], url_path='verify-registry')
+    def verify_registry(self, request):
+        """POST /api/dossiers/verify-registry/"""
+        user = request.user
+        
+        numero_registre = request.data.get('numero_registre')
+        annee_registre = request.data.get('annee_registre')
+        commune_id = request.data.get('commune')
+        type_acte = request.data.get('type_acte')
+        is_for_third_party = str(request.data.get('is_for_third_party', 'false')).lower() == 'true'
+
+        if not all([numero_registre, annee_registre, commune_id, type_acte]):
+            return error_response(
+                message='numero_registre, annee_registre, commune et type_acte sont obligatoires.',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Chercher dans la base simulée
+        try:
+            registre = RegistreCivil.objects.get(
+                numero_registre=numero_registre,
+                annee_registre=annee_registre,
+                commune_id=commune_id,
+                type_acte=type_acte
+            )
+        except RegistreCivil.DoesNotExist:
+            return error_response(
+                message='Cet acte est introuvable dans le Registre Civil.',
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Si tierce personne, exiger CNI du demandeur, pas besoin de vérifier le nom de l'acte contre le demandeur.
+        if is_for_third_party:
+            if not hasattr(user, 'profile') or not user.profile.cni_number:
+                return error_response(
+                    message='Votre profil doit contenir un numéro de CNI valide pour faire une demande pour autrui.',
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            # Demande personnelle : vérifier que le nom correspond à l'utilisateur connecté
+            user_nom = user.full_name.lower().strip()
+            registre_nom = registre.nom_complet_personne.lower().strip()
+            
+            # Simple vérification (dans la vraie vie on utilise des algorithmes phonétiques)
+            if user_nom not in registre_nom and registre_nom not in user_nom:
+                return error_response(
+                    message='Les noms sur cet acte ne correspondent pas à votre identité.',
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return success_response(
+            message='Acte trouvé. Veuillez fournir la date de naissance pour valider la demande.'
         )
 
     # =====================================================
