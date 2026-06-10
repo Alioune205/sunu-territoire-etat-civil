@@ -21,10 +21,12 @@ Suite aux derniers ajustements, voici la répartition mise à jour des tâches p
 > **Rôle :** Responsable exclusif de l'extraction de texte (OCR). Aucune implication dans l'IA générale.
 
 **Tâches :**
-1. **Extraction structurée OCR** : Parser les données des CNI avec Tesseract.
-2. **Pré-traitement d'image** : Nettoyage et amélioration du contraste/netteté avant OCR.
-3. **Endpoints de confirmation OCR** : Extraction brute et validation manuelle par l'utilisateur.
-4. **Détection de doublons** : Par hachage de fichiers (SHA256).
+1. ~~**Extraction structurée OCR** : Parser les données des CNI avec Tesseract.~~ ✅ **FAIT (Migration vers EasyOCR accomplie avec succès)**
+2. ~~**Pré-traitement d'image** : Nettoyage et amélioration du contraste/netteté avant OCR.~~ ✅ **FAIT**
+3. ~~**Endpoints de confirmation OCR** : Extraction brute et validation manuelle par l'utilisateur.~~ ✅ **FAIT**
+4. ~~**Détection de doublons** : Par hachage de fichiers (SHA256).~~ ✅ **FAIT**
+
+*(Toutes les tâches de DEV 1D sont officiellement terminées ! 🎉)*
 
 ---
 
