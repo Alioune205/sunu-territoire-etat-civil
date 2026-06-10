@@ -1,65 +1,154 @@
-import logging
-import pytesseract
-from PIL import Image, ImageFilter, ImageEnhance
-import io
-import re
+"""
+Module OCR unifié — EasyOCR + support PDF via pypdfium2.
 
+Sources acceptées :
+  1. Image uploadée  (JPG, PNG, WEBP, BMP...)
+  2. PDF uploadé     (toutes les pages sont analysées)
+  3. Image base64    (capture caméra WebRTC depuis le frontend)
+"""
+import logging
 import os
+import re
+import io
+import base64
+import numpy as np
+from PIL import Image, ImageFilter, ImageEnhance
 
 logger = logging.getLogger(__name__)
 
-# Cross-platform compatibility for Tesseract
-# In production (Linux), Tesseract is usually in the PATH.
-tesseract_path = os.getenv('TESSERACT_CMD', None)
-if tesseract_path:
-    pytesseract.pytesseract.tesseract_cmd = tesseract_path
-elif os.name == 'nt':
-    # Fallback for Windows local development
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# ─────────────────────────────────────────────
+# Initialisation EasyOCR (une seule fois)
+# ─────────────────────────────────────────────
+ocr_model = None
+try:
+    import easyocr
+    ocr_model = easyocr.Reader(['fr', 'en'], gpu=False)
+    logger.info("EasyOCR initialisé avec succès.")
+except Exception as e:
+    ocr_model = None
+    logger.error(f"EasyOCR n'a pas pu être initialisé : {e}")
 
-def preprocess_image(image):
-    image = image.convert('L')           # Niveaux de gris
-    image = image.filter(ImageFilter.SHARPEN)  # Netteté
+
+# ─────────────────────────────────────────────
+# Utilitaires internes
+# ─────────────────────────────────────────────
+
+def preprocess_image(image: Image.Image) -> Image.Image:
+    """Améliore la qualité de l'image avant l'OCR."""
+    image = image.convert('L')
+    image = image.filter(ImageFilter.SHARPEN)
     enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2.0)        # Contraste x2
+    image = enhancer.enhance(2.0)
     return image
 
-def extract_text_from_image(image_file):
+
+def _run_ocr_on_pil(image: Image.Image) -> str:
+    """Lance EasyOCR sur une image PIL et retourne le texte extrait."""
+    if not ocr_model:
+        return ""
+    image = preprocess_image(image)
+    image = image.convert('RGB')
+    image_np = np.array(image)
+    result = ocr_model.readtext(image_np)
+    return "\n".join(text for (_, text, conf) in result if conf > 0.2)
+
+
+def _is_pdf(file_obj) -> bool:
+    """Détecte si un fichier est un PDF en lisant ses 4 premiers octets."""
+    try:
+        header = file_obj.read(4)
+        file_obj.seek(0)
+        return header == b'%PDF'
+    except Exception:
+        return False
+
+
+def _extract_text_from_pdf(file_obj) -> str:
     """
-    Extrait le texte brut d'un fichier image fourni (upload).
+    Extrait le texte de toutes les pages d'un PDF via pypdfium2 + EasyOCR.
+    Chaque page est rendue en image haute résolution, puis analysée par OCR.
     """
     try:
-        # Lire le fichier image en mémoire
-        image = Image.open(image_file)
-        
-        # Prétraitements
-        image = preprocess_image(image)
-        
-        # Extraction du texte (langue française par défaut si installée)
-        # On fallback sur l'anglais/défaut si le modèle 'fra' n'est pas présent
-        try:
-            text = pytesseract.image_to_string(image, lang='fra')
-        except pytesseract.TesseractError:
-            text = pytesseract.image_to_string(image)
-            
-        return text.strip()
+        import pypdfium2 as pdfium
+        pdf_bytes = file_obj.read()
+        pdf = pdfium.PdfDocument(pdf_bytes)
+        all_texts = []
+
+        for page_index in range(len(pdf)):
+            page = pdf[page_index]
+            # Rendu à 200 DPI pour une bonne qualité OCR
+            bitmap = page.render(scale=200 / 72)
+            pil_image = bitmap.to_pil()
+            page_text = _run_ocr_on_pil(pil_image)
+            if page_text:
+                all_texts.append(f"[Page {page_index + 1}]\n{page_text}")
+
+        pdf.close()
+        return "\n\n".join(all_texts).strip()
+
+    except ImportError:
+        logger.error("pypdfium2 n'est pas installé. Installez-le avec : pip install pypdfium2")
+        return ""
     except Exception as e:
-        logger.error(f"Erreur lors de l'extraction OCR: {e}")
+        logger.error(f"Erreur lors de l'extraction PDF : {e}")
         return ""
 
-def extract_cni_data(image_file) -> dict:
+
+# ─────────────────────────────────────────────
+# Fonctions publiques
+# ─────────────────────────────────────────────
+
+def extract_text_from_file(file_obj) -> str:
     """
-    Retourne :
-    {
-      "nom": "DIALLO",
-      "prenom": "Moussa",
-      "numero_cni": "1 2345 67890 12345",
-      "date_naissance": "15/03/1990",
-      "lieu_naissance": "Dakar",
-      "date_expiration": "15/03/2030"
-    }
+    Extrait le texte d'un fichier uploadé.
+    Détecte automatiquement si c'est un PDF ou une image.
+    Accepte : InMemoryUploadedFile Django, chemin str, ou BytesIO.
     """
-    text = extract_text_from_image(image_file)
+    if not ocr_model:
+        logger.error("EasyOCR n'est pas initialisé.")
+        return ""
+    try:
+        if _is_pdf(file_obj):
+            return _extract_text_from_pdf(file_obj)
+        else:
+            image = Image.open(file_obj)
+            return _run_ocr_on_pil(image)
+    except Exception as e:
+        logger.error(f"Erreur lors de l'extraction du fichier : {e}")
+        return ""
+
+
+# Alias rétrocompatible (ancienne signature)
+def extract_text_from_image(image_file) -> str:
+    return extract_text_from_file(image_file)
+
+
+def extract_text_from_base64(base64_string: str) -> str:
+    """
+    Extrait le texte d'une image encodée en base64.
+    Utilisé pour les captures caméra (WebRTC) depuis le frontend.
+    Accepte le format data URI : data:image/jpeg;base64,/9j/...
+    """
+    try:
+        if ',' in base64_string:
+            base64_string = base64_string.split(',', 1)[1]
+        image_data = base64.b64decode(base64_string)
+        image_file = io.BytesIO(image_data)
+        return extract_text_from_file(image_file)
+    except Exception as e:
+        logger.error(f"Erreur décodage base64 : {e}")
+        return ""
+
+
+# ─────────────────────────────────────────────
+# Extraction structurée des données CNI
+# ─────────────────────────────────────────────
+
+def _parse_cni_fields(text: str) -> dict:
+    """
+    Parse les champs structurés d'une CNI sénégalaise CEDEAO
+    à partir du texte brut extrait par OCR.
+    """
     data = {
         "nom": "",
         "prenom": "",
@@ -68,32 +157,54 @@ def extract_cni_data(image_file) -> dict:
         "lieu_naissance": "",
         "date_expiration": ""
     }
-    
-    # Expressions régulières basiques pour l'extraction CNI
-    match_nom = re.search(r'(?:NOM|Nom)[\s:]*([A-Z]+)', text)
-    if match_nom:
-        data["nom"] = match_nom.group(1).strip()
-        
-    match_prenom = re.search(r'(?:PRENOM|Prenom|Prénom)[\s:]*([A-Z][a-z]+(?:[ -][A-Z][a-z]+)*)', text, re.IGNORECASE)
-    if match_prenom:
-        data["prenom"] = match_prenom.group(1).strip()
-        
-    match_cni = re.search(r'\b(\d{1}\s?\d{4}\s?\d{5}\s?\d{5})\b', text)
-    if match_cni:
-        data["numero_cni"] = match_cni.group(1).strip()
-        
-    match_dob = re.search(r'(?:Né\(e\) le|Date de naissance)[\s:]*(\d{2}/\d{2}/\d{4})', text, re.IGNORECASE)
-    if not match_dob:
-        match_dob = re.search(r'\b(\d{2}/\d{2}/\d{4})\b', text)
+
+    # --- NOM ---
+    match = re.search(r'(?:^|\n)(?:NOM|Nom)\s*[:\n\r]+\s*([A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ][A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ\s\-]+)', text, re.IGNORECASE | re.MULTILINE)
+    if not match:
+        match = re.search(r'(?:NOM|Nom)[\s:]+([A-Z][A-Z\s\-]+)', text, re.IGNORECASE)
+    if match:
+        data["nom"] = match.group(1).strip().split('\n')[0]
+
+    # --- PRENOM ---
+    match = re.search(r'(?:PRENOM|Prenom|Prénom|Prénoms)[\s:\n\r]+([A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ][A-Za-zÀ-ÿ\s\-]+)', text, re.IGNORECASE)
+    if match:
+        data["prenom"] = match.group(1).strip().split('\n')[0]
+
+    # --- NUMERO CNI (format sénégalais) ---
+    match = re.search(r'\b(\d[\s]?\d{2}[\s]?\d{8}[\s]?\d{5})\b', text)
+    if match:
+        data["numero_cni"] = match.group(1).strip()
+
+    # --- DATES ---
+    dates = re.findall(r'\b(\d{2}/\d{2}/\d{4})\b', text)
+
+    match_dob = re.search(r'(?:Date de naissance|Né\(e\) le)[\s:\n\r]+(\d{2}/\d{2}/\d{4})', text, re.IGNORECASE)
     if match_dob:
         data["date_naissance"] = match_dob.group(1).strip()
-        
-    match_lieu = re.search(r'(?:à|Lieu de naissance)[\s:]*([A-Za-z]+)', text, re.IGNORECASE)
-    if match_lieu:
-        data["lieu_naissance"] = match_lieu.group(1).strip()
-        
-    match_exp = re.search(r'(?:Expire le|Date d\'expiration)[\s:]*(\d{2}/\d{2}/\d{4})', text, re.IGNORECASE)
+    elif dates:
+        data["date_naissance"] = dates[0]
+
+    match_exp = re.search(r"(?:Expire le|Date.{0,10}expiration|dexpiration|d'expiration)[\s:\n\r]+(\d{2}/\d{2}/\d{4})", text, re.IGNORECASE)
     if match_exp:
         data["date_expiration"] = match_exp.group(1).strip()
-        
+    elif len(dates) >= 2:
+        data["date_expiration"] = dates[-1]
+
+    # --- LIEU DE NAISSANCE ---
+    match = re.search(r'(?:Lieu de naissance|Lleu de naissance)[\s:\n\r]+([A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ][A-Za-zÀ-ÿ\s\-]+)', text, re.IGNORECASE)
+    if match:
+        data["lieu_naissance"] = match.group(1).strip().split('\n')[0]
+
     return data
+
+
+def extract_cni_data(file_obj) -> dict:
+    """Extrait les données structurées d'une CNI depuis un fichier image ou PDF."""
+    text = extract_text_from_file(file_obj)
+    return _parse_cni_fields(text)
+
+
+def extract_cni_data_from_base64(base64_string: str) -> dict:
+    """Extrait les données structurées d'une CNI depuis une image base64 (caméra)."""
+    text = extract_text_from_base64(base64_string)
+    return _parse_cni_fields(text)
