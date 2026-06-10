@@ -40,7 +40,7 @@ def chat_orchestrator(user, user_message, chat_history=None):
     try:
         client = get_groq_client()
         # Modèle rapide et intelligent pour le Tool Calling
-        model_name = "llama3-70b-8192"
+        model_name = "llama-3.3-70b-versatile"
         
         # 1. Premier appel à Groq avec les outils disponibles
         response = client.chat.completions.create(
