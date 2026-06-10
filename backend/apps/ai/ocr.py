@@ -102,17 +102,29 @@ def extract_text_from_file(file_obj) -> str:
     """
     Extrait le texte d'un fichier uploadé.
     Détecte automatiquement si c'est un PDF ou une image.
-    Accepte : InMemoryUploadedFile Django, chemin str, ou BytesIO.
+    Accepte : chemin str, InMemoryUploadedFile Django, ou BytesIO.
     """
     if not ocr_model:
         logger.error("EasyOCR n'est pas initialisé.")
         return ""
     try:
-        if _is_pdf(file_obj):
-            return _extract_text_from_pdf(file_obj)
+        # Si c'est un chemin string, on ouvre le fichier en binaire
+        if isinstance(file_obj, str):
+            with open(file_obj, 'rb') as f:
+                content = f.read()
+            file_like = io.BytesIO(content)
+            if content[:4] == b'%PDF':
+                return _extract_text_from_pdf(file_like)
+            else:
+                image = Image.open(file_like)
+                return _run_ocr_on_pil(image)
         else:
-            image = Image.open(file_obj)
-            return _run_ocr_on_pil(image)
+            # C'est un file object (InMemoryUploadedFile ou BytesIO)
+            if _is_pdf(file_obj):
+                return _extract_text_from_pdf(file_obj)
+            else:
+                image = Image.open(file_obj)
+                return _run_ocr_on_pil(image)
     except Exception as e:
         logger.error(f"Erreur lors de l'extraction du fichier : {e}")
         return ""
