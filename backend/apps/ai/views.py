@@ -170,11 +170,21 @@ class NdiogoyeChatView(APIView):
     @extend_schema(tags=['AI & OCR'], summary="Discuter avec l'assistant IA Ndiogoye")
     def post(self, request, *args, **kwargs):
         message = request.data.get('message', '')
+        chat_history = request.data.get('chat_history', [])
         conversation_id = request.data.get('conversation_id')
 
         if not message:
             return Response({'error': 'Veuillez envoyer un message.'}, status=400)
 
-        result = process_ndiogoye_chat(message, conversation_id)
+        user = request.user if request.user.is_authenticated else None
+
+        result = chat_orchestrator(
+            user=user,
+            user_message=message,
+            chat_history=chat_history
+        )
         
+        if conversation_id and isinstance(result, dict):
+            result['conversation_id'] = conversation_id
+            
         return Response(result)

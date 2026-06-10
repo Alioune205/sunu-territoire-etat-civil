@@ -17,6 +17,7 @@ from .serializers import (
     RegisterSerializer,
     LogoutSerializer,
 )
+from rest_framework.throttling import ScopedRateThrottle
 
 
 class LoginView(TokenObtainPairView):
@@ -27,6 +28,8 @@ class LoginView(TokenObtainPairView):
     """
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
 
     @extend_schema(
         tags=['Auth'],
@@ -195,7 +198,22 @@ class SendOTPView(GenericAPIView):
         expires_at = timezone.now() + timedelta(minutes=10)
 
         OTPCode.objects.create(identifier=identifier, code=code, expires_at=expires_at)
-        print(f"\\n{'='*40}\\n[SIMULATION OTP] Code pour {identifier} : {code}\\n{'='*40}\\n")
+        
+        if '@' in identifier:
+            from django.core.mail import send_mail
+            from django.conf import settings
+            try:
+                send_mail(
+                    subject="Code de vérification — TERANGA CIVIL",
+                    message=f"Votre code de vérification OTP est : {code}. Il expire dans 10 minutes.",
+                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@terangacivil.sn'),
+                    recipient_list=[identifier],
+                    fail_silently=False,
+                )
+            except Exception as e:
+                print(f"Erreur d'envoi d'email SMTP : {e}")
+        else:
+            print(f"\n{'='*40}\n[SIMULATION SMS OTP] Code pour {identifier} : {code}\n{'='*40}\n")
 
         return success_response(message='Code OTP envoyé avec succès.')
 

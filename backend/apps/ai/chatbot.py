@@ -19,7 +19,13 @@ SYSTEM_PROMPT = """Tu es Ndiogoye, l'assistant administratif intelligent de TERA
 Ton rôle est d'aider les citoyens avec leurs démarches et de suivre leurs dossiers.
 Tu es poli, professionnel, concis et tu parles français.
 RÈGLE D'OR: Ne JAMAIS inventer de statut de dossier ni de documents. Si on te demande des informations spécifiques, utilise TOUJOURS les outils (tools) à ta disposition.
-Si tu ne trouves pas la réponse avec les outils, dis simplement que tu ne sais pas et conseille de se rapprocher de la mairie."""
+Si tu ne trouves pas la réponse avec les outils, dis simplement que tu ne sais pas et conseille de se rapprocher de la mairie.
+
+IMPORTANT: Tu dois TOUJOURS formater ta réponse finale (lorsque tu t'adresses à l'utilisateur) UNIQUEMENT sous forme d'un objet JSON valide contenant 3 clés :
+- "intent": l'intention détectée ("salutation", "creer_dossier", "suivre_dossier", "info_procedure", ou "inconnu").
+- "action": l'action à déclencher côté frontend ("none", "start_dossier", "check_status").
+- "reply": ton message texte en français pour le citoyen.
+N'ajoute aucun texte avant ou après l'objet JSON. Réponds UNIQUEMENT avec le JSON."""
 
 def chat_orchestrator(user, user_message, chat_history=None):
     """
@@ -46,6 +52,8 @@ def chat_orchestrator(user, user_message, chat_history=None):
         
         response_message = response.choices[0].message
         tool_calls = response_message.tool_calls
+        
+        final_content = response_message.content
         
         # 2. Si Groq décide d'appeler un outil (Agent BDD ou Agent FAQ)
         if tool_calls:
@@ -82,12 +90,32 @@ def chat_orchestrator(user, user_message, chat_history=None):
             # 4. Deuxième appel à Groq pour générer la réponse finale avec les données récupérées
             second_response = client.chat.completions.create(
                 model=model_name,
-                messages=messages
+                messages=messages,
+                response_format={"type": "json_object"}
             )
-            return second_response.choices[0].message.content
+            final_content = second_response.choices[0].message.content
             
-        # Si aucun outil n'est appelé, on retourne la réponse directe
-        return response_message.content
+        # Si aucun outil n'est appelé, on retourne la réponse directe parsée
+        try:
+            # Parfois le LLM rajoute des backticks markdown (```json ... ```)
+            clean_content = final_content.strip()
+            if clean_content.startswith('```json'):
+                clean_content = clean_content[7:]
+            if clean_content.endswith('```'):
+                clean_content = clean_content[:-3]
+            clean_content = clean_content.strip()
+            
+            return json.loads(clean_content)
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            return {
+                "intent": "inconnu",
+                "action": "none",
+                "reply": final_content or "Désolé, je n'ai pas pu générer une réponse valide."
+            }
         
     except Exception as e:
-        return f"Désolé, j'ai rencontré une erreur lors de la réflexion: {str(e)}"
+        return {
+            "intent": "erreur",
+            "action": "none",
+            "reply": f"Désolé, j'ai rencontré une erreur lors de la réflexion: {str(e)}"
+        }

@@ -8,12 +8,12 @@ Suite aux derniers ajustements, voici la répartition mise à jour des tâches p
 > **Rôle :** Responsable du cœur backend et de toute l'intelligence artificielle (Chatbot Ndiogoye).
 
 **Tâches :**
-1. **Système OTP** : Vérification par téléphone ou email (envoi et validation).
-2. **Login unifié** : Connexion par téléphone ou email.
-3. **Throttling anti brute-force** : Limite de requêtes sur le login.
-4. **Demande tierce personne** : Permettre les demandes pour d'autres citoyens (père, mère, enfant).
-5. **Historique des connexions** : Traçabilité des logins avec IP et User-Agent.
-6. **Ndiogoye IA (Chatbot)** : **Tu as désormais l'exclusivité totale sur la partie IA**. Intégration du Chatbot et gestion des intentions (salutation, créer dossier, etc.). 
+1. ~~**Système OTP** : Vérification par téléphone ou email (envoi et validation).~~ ✅ **FAIT (Envoi mail implémenté)**
+2. ~~**Login unifié** : Connexion par téléphone ou email.~~ ✅ **FAIT**
+3. ~~**Throttling anti brute-force** : Limite de requêtes sur le login.~~ ✅ **FAIT (ScopedRateThrottle appliqué)**
+4. ~~**Demande tierce personne** : Permettre les demandes pour d'autres citoyens (père, mère, enfant).~~ ✅ **FAIT**
+5. ~~**Historique des connexions** : Traçabilité des logins avec IP et User-Agent.~~ ✅ **FAIT**
+6. ~~**Ndiogoye IA (Chatbot)** : **Tu as désormais l'exclusivité totale sur la partie IA**. Intégration du Chatbot et gestion des intentions (salutation, créer dossier, etc.).~~ ✅ **FAIT (Intégration Groq LLM avec Tool Calling JSON finalisée)** 
 
 ---
 
