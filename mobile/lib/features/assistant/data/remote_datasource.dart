@@ -10,7 +10,7 @@ class AssistantRemoteDatasource {
     required String language,
     List<Map<String, dynamic>>? history,
   }) async {
-    final res = await client.post('/assistant/chat', data: {
+    final res = await client.post('/ai/ndiogoye/chat/', data: {
       'message': message,
       'language': language,
       'history': history ?? [],

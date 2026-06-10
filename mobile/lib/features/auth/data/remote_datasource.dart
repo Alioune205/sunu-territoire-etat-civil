@@ -13,7 +13,7 @@ class AuthRemoteDatasource {
   }) async {
     Response? res;
     try {
-      res = await client.post('/auth/login', data: {
+      res = await client.post('/auth/login/', data: {
         'identifier': identifier,
         'password': password,
       });
@@ -38,7 +38,7 @@ class AuthRemoteDatasource {
     String? phone,
     String? email,
   }) async {
-    final res = await client.post('/auth/register', data: {
+    final res = await client.post('/auth/register/', data: {
       'prenom': prenom,
       'nom': nom,
       'password': password,
@@ -58,7 +58,7 @@ class AuthRemoteDatasource {
     required String identifier,
     required String code,
   }) async {
-    final res = await client.post('/auth/verify-otp', data: {
+    final res = await client.post('/auth/otp/verify/', data: {
       'identifier': identifier,
       'code': code,
     });
@@ -69,11 +69,11 @@ class AuthRemoteDatasource {
   }
 
   Future<void> resendOtp({required String identifier}) async {
-    await client.post('/auth/resend-otp', data: {'identifier': identifier});
+    await client.post('/auth/otp/send/', data: {'identifier': identifier});
   }
 
   Future<UserResponseModel> getMe() async {
-    final res = await client.get('/auth/me');
+    final res = await client.get('/users/me/');
     if (res.statusCode == 200 && res.data != null) {
       return UserResponseModel.fromJson(res.data as Map<String, dynamic>);
     }

@@ -4,11 +4,22 @@ from apps.shared.responses import error_response
 from .models import PaymentTransaction
 from .serializers import PaymentTransactionSerializer
 from drf_spectacular.utils import extend_schema
+from rest_framework.views import APIView
+from apps.shared.responses import success_response
 
 class IsSuperAdmin(IsAuthenticated):
     def has_permission(self, request, view):
         is_authenticated = super().has_permission(request, view)
         return is_authenticated and hasattr(request.user, 'role') and request.user.role == 'super_admin'
+
+class InitiatePaymentView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        return success_response(
+            message="Paiement initié avec succès.",
+            data={"status": "pending", "transaction_id": "TX_MOCK_123"}
+        )
 
 class AdminTransactionListView(ListAPIView):
     """

@@ -11,7 +11,7 @@ class DossiersRemoteDatasource {
   const DossiersRemoteDatasource({required this.client});
 
   Future<List<DossierModel>> getDossiers() async {
-    final res = await client.get('/dossiers');
+    final res = await client.get('/dossiers/');
     if (res.statusCode == 200 && res.data != null) {
       final list = res.data as List;
       return list
@@ -22,7 +22,7 @@ class DossiersRemoteDatasource {
   }
 
   Future<DossierModel> getDossierById(String id) async {
-    final res = await client.get('/dossiers/$id');
+    final res = await client.get('/dossiers/$id/');
     if (res.statusCode == 200 && res.data != null) {
       return DossierModel.fromJson(res.data as Map<String, dynamic>);
     }
@@ -30,7 +30,7 @@ class DossiersRemoteDatasource {
   }
 
   Future<String> submitCertificate(Map<String, dynamic> payload) async {
-    final res = await client.post('/certificates/submit', data: payload);
+    final res = await client.post('/dossiers/', data: payload);
     if ((res.statusCode == 200 || res.statusCode == 201) && res.data != null) {
       return (res.data as Map<String, dynamic>)['dossier_id'] as String;
     }
@@ -52,7 +52,7 @@ class DossiersRemoteDatasource {
     final savePath = '${dir.path}/certificat_$dossierId.pdf';
     debugPrint('[DOWNLOAD] Téléchargement vers $savePath');
     await client.download(
-      '/dossiers/$dossierId/download',
+      '/dossiers/$dossierId/download_pdf/',
       savePath,
       onReceiveProgress: onProgress,
     );

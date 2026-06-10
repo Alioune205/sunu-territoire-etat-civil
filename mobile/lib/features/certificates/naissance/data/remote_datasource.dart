@@ -15,10 +15,10 @@ class NaissanceRemoteDatasource {
       // final formData = FormData.fromMap({
       //   'image': await MultipartFile.fromFile(imagePath, filename: 'extrait.jpg'),
       // });
-      // final res = await client.post('/ocr/extract-naissance', data: formData);
+      // final res = await client.post('/ai/ocr/extract/', data: formData);
 
       // En mode mock : simple POST sans fichier
-      final res = await client.post('/ocr/extract-naissance', data: {
+      final res = await client.post('/ai/ocr/extract/', data: {
         'image_path': imagePath,
       });
 
