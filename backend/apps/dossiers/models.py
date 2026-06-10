@@ -24,10 +24,11 @@ class Dossier(TimeStampedModel):
     class Status(models.TextChoices):
         DRAFT = 'draft', 'Brouillon'
         SUBMITTED = 'submitted', 'Soumis'
-        IN_REVIEW = 'in_review', 'En cours de vérification'
-        APPROVED = 'approved', 'Approuvé'
+        IN_REVIEW = 'in_review', 'En vérification'
+        GENERATED = 'generated', 'Généré'
+        VALIDATED = 'validated', 'Validé'
+        DELIVERED = 'delivered', 'Délivré'
         REJECTED = 'rejected', 'Rejeté'
-        COMPLETED = 'completed', 'Terminé'
 
     reference = models.CharField(
         max_length=30,
@@ -184,12 +185,59 @@ class RegistreCivil(TimeStampedModel):
         choices=Dossier.Type.choices,
         verbose_name="Type d'acte",
     )
-    nom_complet_personne = models.CharField(
-        max_length=255,
-        verbose_name='Nom complet sur le registre',
+    prenoms_enfant = models.CharField(
+        max_length=150,
+        verbose_name="Prénoms de l'enfant",
+        default="Inconnu",
+    )
+    nom_enfant = models.CharField(
+        max_length=100,
+        verbose_name="Nom de l'enfant",
+        default="Inconnu",
     )
     date_naissance_personne = models.DateField(
-        verbose_name='Date de naissance sur le registre',
+        verbose_name='Date de naissance',
+    )
+    heure_naissance = models.TimeField(
+        null=True,
+        blank=True,
+        verbose_name='Heure de naissance',
+    )
+    sexe = models.CharField(
+        max_length=20,
+        choices=[('Masculin', 'Masculin'), ('Féminin', 'Féminin')],
+        default='Masculin',
+        verbose_name='Sexe',
+    )
+    lieu_naissance = models.CharField(
+        max_length=150,
+        verbose_name='Lieu de naissance',
+        default='Inconnu',
+    )
+    prenom_pere = models.CharField(
+        max_length=100,
+        verbose_name='Prénom du père',
+        default='Inconnu',
+    )
+    prenom_mere = models.CharField(
+        max_length=100,
+        verbose_name='Prénoms de la mère',
+        default='Inconnue',
+    )
+    nom_mere = models.CharField(
+        max_length=100,
+        verbose_name='Nom de la mère',
+        default='Inconnue',
+    )
+    jugement_suppletif = models.BooleanField(
+        default=False,
+        verbose_name='Jugement supplétif',
+    )
+    numero_jugement = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        verbose_name='Numéro de jugement',
     )
     # Pour le mariage
     conjoint_nom_complet = models.CharField(
@@ -206,4 +254,4 @@ class RegistreCivil(TimeStampedModel):
         ordering = ['-annee_registre', 'numero_registre']
 
     def __str__(self):
-        return f'{self.numero_registre}/{self.annee_registre} - {self.nom_complet_personne} ({self.get_type_acte_display()})'
+        return f'{self.numero_registre}/{self.annee_registre} - {self.prenoms_enfant} {self.nom_enfant} ({self.get_type_acte_display()})'

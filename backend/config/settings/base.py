@@ -34,6 +34,10 @@ ALLOWED_HOSTS = config(
     cast=Csv()
 )
 
+# CORS Configuration pour débloquer le Frontend (DEV 2A et 2B)
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
@@ -78,6 +82,7 @@ LOCAL_APPS = [
     'apps.system',
     'apps.integrations',
     'apps.services',
+    'apps.payments',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -96,6 +101,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apps.audit_logs.middleware.AuditLogMiddleware',
+    'apps.payments.middleware.ReadOnlyForSuperAdminMiddleware',
+    'apps.system.middleware.PerformanceMonitoringMiddleware',
 ]
 
 # ==============================================================================
@@ -130,6 +137,13 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
+
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+]
 
 # ==============================================================================
 # PASSWORD VALIDATION
@@ -346,19 +360,21 @@ LOGGING = {
         },
         'error_file': {
             'level': 'ERROR',
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': LOGS_DIR / 'errors.log',
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 5,
             'formatter': 'verbose',
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'system_file'],
+            'handlers': ['console', 'system_file', 'error_file'],
             'level': 'INFO',
             'propagate': True,
         },
         'system': {
-            'handlers': ['console', 'system_file'],
+            'handlers': ['console', 'system_file', 'error_file'],
             'level': 'INFO',
             'propagate': False,
         },

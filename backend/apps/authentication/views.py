@@ -281,3 +281,232 @@ class LoginHistoryView(GenericAPIView):
         history = LoginHistory.objects.filter(user=request.user)[:50]
         serializer = self.get_serializer(history, many=True)
         return success_response(data=serializer.data, message='Historique récupéré.')
+
+import hashlib
+import secrets
+import uuid
+import jwt
+from django.conf import settings
+from django.core.mail import send_mail
+from django.core.cache import cache
+from datetime import timedelta
+from apps.authentication.models import OTPToken
+from apps.audit_logs.models import AuditLog
+from .serializers import (
+    SuperAdminOTPRequestSerializer,
+    SuperAdminOTPVerifySerializer,
+    SuperAdminPasswordResetSerializer
+)
+
+def get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0].strip()
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+class SuperAdminOTPRequestView(GenericAPIView):
+    """
+    POST /api/v1/auth/super-admin/otp-request
+    """
+    serializer_class = SuperAdminOTPRequestSerializer
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=['Auth Super Admin'],
+        summary='Demander un OTP Super Admin',
+        description='Génère un code OTP pour un compte super administrateur et l\'envoie par e-mail.'
+    )
+    def post(self, request, *args, **kwargs):
+        ip = get_client_ip(request)
+        request_key = f"super_admin_otp_request_{ip}"
+        request_count = cache.get(request_key, 0)
+        
+        if request_count >= 3:
+            return error_response(
+                message="Limite de demandes OTP dépassée. Réessayez plus tard (max 3/heure).",
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+
+        # Générer l'OTP et le sel
+        otp = str(secrets.randbelow(900000) + 100000) # Assure 6 chiffres
+        salt = secrets.token_hex(16)
+        otp_hash = hashlib.sha256((otp + salt).encode('utf-8')).hexdigest()
+        expires_at = timezone.now() + timedelta(minutes=10)
+
+        # Enregistrer en base
+        OTPToken.objects.create(
+            email=email,
+            otp_hash=otp_hash,
+            salt=salt,
+            expires_at=expires_at
+        )
+
+        # Envoyer l'email
+        try:
+            send_mail(
+                subject="Code de validation — Teranga Civil Super Admin",
+                message=f"Votre code de vérification OTP est : {otp}. Il expire dans 10 minutes.",
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@terangacivil.sn'),
+                recipient_list=[email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            # En développement, ne pas bloquer si SMTP n'est pas configuré
+            print(f"Erreur d'envoi d'email SMTP : {e}")
+
+        # Afficher en console pour tests
+        print(f"\n{'='*50}\n[SIMULATION OTP SUPER ADMIN] Code pour {email} : {otp}\n{'='*50}\n")
+
+        # Incrémenter le limiteur
+        cache.set(request_key, request_count + 1, timeout=3600) # 1 heure
+
+        return success_response(message="Un code OTP a été envoyé à votre adresse e-mail.")
+
+
+class SuperAdminOTPVerifyView(GenericAPIView):
+    """
+    POST /api/v1/auth/super-admin/otp-verify
+    """
+    serializer_class = SuperAdminOTPVerifySerializer
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=['Auth Super Admin'],
+        summary='Vérifier un OTP Super Admin',
+        description='Vérifie le code OTP et renvoie un reset_token JWT unique valide 15 minutes.'
+    )
+    def post(self, request, *args, **kwargs):
+        ip = get_client_ip(request)
+        block_key = f"super_admin_otp_verify_blocked_{ip}"
+        
+        if cache.get(block_key):
+            return error_response(
+                message="Trop de tentatives de vérification. Accès bloqué pour 30 minutes.",
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        code = serializer.validated_data['code']
+
+        attempts_key = f"super_admin_otp_verify_attempts_{ip}"
+        attempts = cache.get(attempts_key, 0)
+
+        # Récupérer le dernier OTP valide pour cet email
+        otp_token = OTPToken.objects.filter(email=email, is_used=False, expires_at__gte=timezone.now()).order_by('-created_at').first()
+        
+        if not otp_token:
+            attempts += 1
+            cache.set(attempts_key, attempts, timeout=1800)
+            if attempts >= 5:
+                cache.set(block_key, True, timeout=1800)
+            return error_response(message="Code OTP invalide ou expiré.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        # Vérifier le hash
+        input_hash = hashlib.sha256((code + otp_token.salt).encode('utf-8')).hexdigest()
+        if input_hash != otp_token.otp_hash:
+            attempts += 1
+            cache.set(attempts_key, attempts, timeout=1800)
+            if attempts >= 5:
+                cache.set(block_key, True, timeout=1800)
+            return error_response(message="Code OTP invalide.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        # Valider et consommer l'OTP
+        otp_token.is_used = True
+        otp_token.save()
+
+        # Réinitialiser les tentatives
+        cache.delete(attempts_key)
+        cache.delete(block_key)
+
+        # Générer le token de réinitialisation JWT à usage unique
+        jti = uuid.uuid4().hex
+        cache.set(f"reset_token_active_{jti}", email, timeout=900) # Valide 15 minutes
+        
+        payload = {
+            'email': email,
+            'jti': jti,
+            'purpose': 'super_admin_password_reset',
+            'exp': timezone.now() + timedelta(minutes=15)
+        }
+        reset_token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+
+        return success_response(
+            data={'reset_token': reset_token},
+            message="Code OTP validé avec succès."
+        )
+
+
+class SuperAdminPasswordResetView(GenericAPIView):
+    """
+    POST /api/v1/auth/super-admin/reset-password
+    """
+    serializer_class = SuperAdminPasswordResetSerializer
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=['Auth Super Admin'],
+        summary='Réinitialiser le mot de passe Super Admin',
+        description='Réinitialise le mot de passe du super administrateur en utilisant un reset_token valide.'
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        reset_token = serializer.validated_data['reset_token']
+        new_password = serializer.validated_data['new_password']
+
+        # Décoder le JWT
+        try:
+            payload = jwt.decode(reset_token, settings.SECRET_KEY, algorithms=['HS256'])
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+            return error_response(message="Jeton de réinitialisation invalide ou expiré.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        email = payload.get('email')
+        jti = payload.get('jti')
+        purpose = payload.get('purpose')
+
+        if purpose != 'super_admin_password_reset':
+            return error_response(message="Objectif de jeton invalide.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        # Vérifier si le jeton est actif dans le cache (usage unique)
+        active_email = cache.get(f"reset_token_active_{jti}")
+        if not active_email or active_email != email:
+            return error_response(message="Ce jeton a déjà été utilisé ou a expiré.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        # Modifier le mot de passe
+        user = User.objects.filter(email=email).first()
+        if not user or user.role != 'super_admin':
+            return error_response(message="Compte super administrateur introuvable.", status_code=status.HTTP_404_NOT_FOUND)
+
+        user.set_password(new_password)
+        user.save()
+
+        # Invalider le reset_token
+        cache.delete(f"reset_token_active_{jti}")
+
+        # Invalider toutes les sessions actives (JWT blacklist simplejwt)
+        from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+        outstanding_tokens = OutstandingToken.objects.filter(user=user)
+        for t in outstanding_tokens:
+            BlacklistedToken.objects.get_or_create(token=t)
+
+        # Loguer l'action d'audit
+        AuditLog.log(
+            user=user,
+            action=AuditLog.Action.UPDATE,
+            resource_type='user',
+            resource_id=user.id,
+            details={'action': 'super_admin_password_reset'},
+            ip_address=get_client_ip(request)
+        )
+
+        return success_response(message="Votre mot de passe a été réinitialisé avec succès et toutes les sessions actives ont été déconnectées.")
+

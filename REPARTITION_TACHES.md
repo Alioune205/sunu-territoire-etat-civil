@@ -78,7 +78,7 @@ Enregistrer dans le signal JWT post-login
 GET /api/auth/login-history/  → liste des 20 dernières connexions
 ```
 
-#### 6. Ndiogoye IA — Refonte conversationnelle *(en binôme avec DEV 1D)*
+#### 6. Ndiogoye IA — Chatbot et Analyse IA
 ```
 POST /api/ai/ndiogoye/chat/
 Body    : { "message": "Je veux un extrait de naissance", "conversation_id": "uuid" }
@@ -90,6 +90,7 @@ Réponse : {
 }
 ```
 Intentions à gérer : `creer_dossier` · `suivre_dossier` · `info_procedure` · `salutation` · `inconnu`
+**NB: Toute la partie IA vous est totalement déléguée.**
 
 ---
 
@@ -260,115 +261,62 @@ def compute_file_hash(file_obj) -> str:
 # Comparer avec Document.sha256_hash existant
 ```
 
-#### 5. Ndiogoye IA conversationnelle *(en binôme avec DEV 1A)*
-Voir spécification dans section DEV 1A — tâche 6.
+#### 5. Exclusivité OCR
+**NB: DEV 1D se concentre uniquement sur l'OCR. Toute la partie IA est gérée par DEV 1A.**
 
 ---
 
-## 💻 DEV 2A — PAPE ALIOUNE SÈNE · Dashboard Admin React
+## 💻 DEV 2A — PAPE ALIOUNE SÈNE · Dashboards Administratifs Web React
 
 > [!TIP]
-> ⏰ **Deadline : 08 juin 2026 à 22h00** — **~70% du travail est débloqué maintenant.** Démarrer sans attendre.
+> ⏰ **Deadline : 08 juin 2026 à 22h00** — Vous êtes responsable **uniquement** des interfaces administratives Web. Vous ne devez pas développer l'application citoyen (celle-ci est exclusivement gérée sur mobile par DEV 3 & 4).
 
 ### Stack obligatoire : React + TailwindCSS + ShadCN
 
 ### Tâches
 
-#### 1. Architecture et Routing
+#### 1. Architecture et Routing Web (Super Admin & Officier d'État Civil)
 ```
-/login          → Page connexion admin (JWT)
-/dashboard      → Vue principale (KPIs + graphiques)
-/dossiers       → Liste avec filtres (statut, type, commune, date)
-/dossiers/:id   → Détail + actions (assigner, valider, rejeter, PDF)
-/citoyens       → CRUD citoyens
-/agents         → CRUD agents
-/communes       → CRUD communes
-/notifications  → Historique
-/audit-logs     → Logs système
-/parametres     → Config (montants timbres, délais)
+/login                 → Connexion sécurisée des agents et officiers
+/dashboard/super-admin → Vue globale (Gestion paiements, Audit Logs, Création Agents)
+/dashboard/officier    → Vue Officier (Statistiques, Dossiers à valider, Approuver/Rejeter)
+/dossiers              → Liste des dossiers avec filtres avancés
+/citoyens              → Base de données des citoyens
 ```
 
-#### 2. Authentification
-```javascript
-// Intercepteur Axios
-axios.interceptors.request.use(config => {
-  const token = localStorage.getItem('access_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-// Sur 401 → refresh token → retry → sinon redirect /login
-```
+#### 2. Modules de Sécurité et Paiement (Super Admin)
+- Interface de gestion des paiements (que vous avez commencé).
+- Visualisation des Audit Logs pour tracer toutes les actions des agents.
 
-#### 3. Dashboard principal
-- Cards KPI : appeler `GET /api/dashboard/stats/`
-- Graphiques `recharts` : évolution mensuelle + répartition par type (pie)
-- Table dossiers récents
+#### 3. Dashboard Officier d'État Civil et Datatables
+- Table avec `TanStack Table` + filtres côté serveur.
+- Actions : Assigner agent · Changer statut · Rejeter avec motif.
+- **Bouton de validation finale** pour déclencher la génération du PDF sécurisé.
 
-#### 4. Gestion des dossiers
-- Table avec `TanStack Table` + filtres côté serveur
-- Actions par ligne : Voir · Assigner agent · Changer statut · Générer PDF · Rejeter
-- Modal de rejet avec champ `rejection_reason`
-
-#### 5. Sécurité des routes
-```javascript
-// Route guard basé sur le rôle du JWT décodé
-const role = jwtDecode(token).role;
-// super_admin → tout
-// civil_admin → sa commune seulement
-// agent       → dossiers assignés seulement
-```
+#### 4. Intégration Ndiogoye (Supervision)
+- Interface pour visualiser l'historique des requêtes IA faites par les citoyens, afin d'optimiser le modèle.
 
 ---
 
-## 🌐 DEV 2B — MASSOGUI DIOP · Frontend React Citoyen
+## 🛠️ DEV 2B — MASSOGUI DIOP · Backend (Sécurité, Intégrations Externes & Temps réel)
 
-> [!TIP]
-> ⏰ **Deadline : 08 juin 2026 à 22h00** — Construire les **UI mockées en avance** (OTP, Ndiogoye, PDF). Les brancher dès que l’API arrive.
+> [!NOTE]
+> ⏰ **Deadline : 08 juin 2026 à 22h00** — Puisque l'application citoyenne mobile est gérée par Flutter (DEV 3 & 4) et le Web par DEV 2A, **vous êtes réaffecté à 100% sur le Backend** pour les fonctionnalités avancées.
 
-### Tâches
+### Nouvelles Tâches (Backend)
 
-#### 1. Pages et routing
-```
-/                    → Landing page publique (présentation TERANGA CIVIL)
-/login               → Connexion citoyen
-/register            → Inscription + vérification OTP
-/dashboard           → Mes dossiers actifs
-/nouvelle-demande    → Choix du type de demande
-/demandes/:id        → Détail + suivi temps réel
-/ndiogoye            → Interface chat IA
-/verify/:uuid        → Vérification document publique (sans auth)
-```
+#### 1. Intégration réelle des fournisseurs SMS/Email
+- Remplacer vos logs "Mock Fallback" par une véritable intégration d'API (ex: Twilio pour les SMS, SendGrid pour l'email) pour l'envoi effectif des OTP et des alertes.
 
-#### 2. Formulaires par type de dossier
-```
-BirthCertificateForm   → Numéro registre + Année + Commune
-MarriageCertificateForm → Époux + Épouse + Témoins + Régime matrimonial
-DeathCertificateForm   → Défunt + Déclarant + Date/Lieu décès
-BirthDeclarationForm   → Certificat accouchement + CNI père + CNI mère
-```
-- Validation : `react-hook-form` + `zod`
-- Appeler `POST /api/dossiers/` à la soumission
+#### 2. WebSockets (Temps réel) avec Django Channels
+- Mettre en place un serveur WebSocket pour mettre à jour en direct le Dashboard de DEV 2A et l'App Flutter sans avoir besoin de rafraîchir la page (polling).
 
-#### 3. Composant Upload intelligent
-```
-<DocumentUpload>
-  - Drag & drop zone
-  - Prévisualisation image/PDF
-  - Barre de progression (axios onUploadProgress)
-  - Appel : POST /api/documents/upload/ (multipart)
-</DocumentUpload>
-```
+#### 3. Mise en cache Redis (Throttling avancé)
+- Configurer Redis pour soulager la base de données et rendre le Throttle (Anti-Brute Force) de l'API ultra-rapide.
 
-#### 4. Suivi temps réel du dossier
-- Polling toutes les 30s sur `GET /api/dossiers/{id}/`
-- Timeline visuelle : `Brouillon → Soumis → En vérification → Approuvé → Terminé`
-- Bouton "Télécharger mon acte" visible seulement si `status === 'completed'`
-
-#### 5. Interface Ndiogoye (chat)
-- Style bulle WhatsApp
-- Appeler `POST /api/ai/ndiogoye/chat/`
-- Afficher les "action cards" retournées par l'IA
-- Exemple : `{ action: "start_dossier" }` → afficher un bouton "Créer une demande"
+#### 4. Configuration Sécurisée en Production
+- Script de configuration Nginx/Gunicorn.
+- Sécurisation des headers HTTP.
 
 ---
 

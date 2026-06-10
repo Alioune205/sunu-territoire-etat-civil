@@ -12,16 +12,22 @@ from apps.shared.responses import success_response
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema
 
 from .models import Notification, DeviceToken
-from .serializers import NotificationSerializer
+from .serializers import NotificationSerializer, CitizenNotificationSerializer
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
     """ViewSet for managing notifications."""
 
-    queryset = Notification.objects.select_related('user').all()
+    queryset = Notification.objects.select_related('user').all().order_by('-created_at')
     serializer_class = NotificationSerializer
+
+    def get_serializer_class(self):
+        if self.action in ['list', 'retrieve']:
+            return CitizenNotificationSerializer
+        return NotificationSerializer
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
@@ -40,16 +46,32 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save()
 
+    @extend_schema(
+        tags=['Notifications'],
+        summary='Marquer une notification comme lue',
+        responses={200: NotificationSerializer}
+    )
     @action(detail=True, methods=['post'], url_path='mark-read')
     def mark_read(self, request, pk=None):
         """Mark a notification as read."""
         notification = self.get_object()
+        
+        # Vérification si la notification appartient à l'utilisateur
+        if notification.user != request.user and not request.user.is_admin_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Vous n'avez pas la permission d'accéder à cette notification.")
+            
         notification.mark_as_read()
-        return success_response(
-            data=NotificationSerializer(notification).data,
-            message='Notification marquée comme lue.',
-        )
+        return Response({
+            "success": True,
+            "id": str(notification.id)
+        })
 
+    @extend_schema(
+        tags=['Notifications'],
+        summary='Lister les notifications',
+        responses={200: NotificationSerializer(many=True)}
+    )
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)

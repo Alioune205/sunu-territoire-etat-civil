@@ -18,6 +18,15 @@ class NotificationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'delivered_at']
 
 
+class CitizenNotificationSerializer(serializers.ModelSerializer):
+    """Sérialiseur pour la liste des notifications du citoyen."""
+    body = serializers.CharField(source='message')
+
+    class Meta:
+        model = Notification
+        fields = ['id', 'title', 'body', 'is_read', 'created_at']
+
+
 class DeviceTokenSerializer(serializers.ModelSerializer):
     """Sérialiseur pour l'enregistrement d'un token FCM."""
 

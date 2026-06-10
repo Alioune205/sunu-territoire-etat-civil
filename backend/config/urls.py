@@ -11,6 +11,11 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
     SpectacularRedocView,
 )
+from apps.authentication.views import (
+    SuperAdminOTPRequestView,
+    SuperAdminOTPVerifyView,
+    SuperAdminPasswordResetView
+)
 
 urlpatterns = [
     # Admin
@@ -22,6 +27,9 @@ urlpatterns = [
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 
     # Core APIs
+    path('api/v1/auth/super-admin/otp-request', SuperAdminOTPRequestView.as_view(), name='super-admin-otp-request'),
+    path('api/v1/auth/super-admin/otp-verify', SuperAdminOTPVerifyView.as_view(), name='super-admin-otp-verify'),
+    path('api/v1/auth/super-admin/reset-password', SuperAdminPasswordResetView.as_view(), name='super-admin-reset-password'),
     path('api/auth/', include('apps.authentication.urls')),
     path('api/users/', include('apps.users.urls')),
     path('api/roles/', include('apps.roles.urls')),
@@ -37,6 +45,7 @@ urlpatterns = [
     path('api/dashboard/', include('apps.dashboard.urls')),
     path('api/system/', include('apps.system.urls')),
     path('api/services/', include('apps.services.urls')),
+    path('api/', include('apps.payments.urls')),
 ]
 
 # Serve media files in development

@@ -1,4 +1,40 @@
+import hashlib
 from apps.dossiers.models import Dossier
+from apps.documents.models import Document
+
+def compute_file_hash(file_obj) -> str:
+    sha256 = hashlib.sha256()
+    for chunk in file_obj.chunks():
+        sha256.update(chunk)
+    return sha256.hexdigest()
+
+def check_document_duplicate_by_hash(file_obj):
+    """
+    Vérifie si un document avec le même contenu (hash SHA-256) existe déjà.
+    """
+    file_hash = compute_file_hash(file_obj)
+    
+    # Réinitialiser le pointeur du fichier après la lecture du hash
+    if hasattr(file_obj, 'seek'):
+        file_obj.seek(0)
+        
+    # Comparaison (Nécessite que Document possède le champ sha256_hash)
+    try:
+        duplicate = Document.objects.filter(sha256_hash=file_hash).first()
+        if duplicate:
+            return {
+                'is_duplicate': True,
+                'document_id': duplicate.id,
+                'file_hash': file_hash
+            }
+    except Exception:
+        # Fallback si le champ n'est pas encore migré
+        pass
+
+    return {
+        'is_duplicate': False,
+        'file_hash': file_hash
+    }
 
 def validate_citizen_document(citizen_profile, extracted_text):
     """
