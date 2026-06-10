@@ -210,6 +210,20 @@ export function AdminLayout() {
             >
               <Menu className="h-5 w-5" />
             </button>
+            <Link
+              to="/admin/audit-logs"
+              className="hidden lg:flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 transition-all hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
+            >
+              <Activity className="h-4 w-4" />
+              Audit Logs
+            </Link>
+            <Link
+              to="/admin/ai-logs"
+              className="hidden lg:flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 transition-all hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
+            >
+              <Bot className="h-4 w-4" />
+              Supervision IA
+            </Link>
             <div>
               <h2 className="text-lg font-semibold text-text-100">
                 {getCurrentPageTitle()}

@@ -13,6 +13,7 @@ import DossierDetail from '@/pages/DossierDetail';
 import Communes from '@/pages/Communes';
 import Agents from '@/pages/Agents';
 import AuditLogs from '@/pages/AuditLogs';
+import NdiogoyeLogs from '@/pages/NdiogoyeLogs';
 import Notifications from '@/pages/Notifications';
 import Settings from '@/pages/Settings';
 import Transactions from '@/pages/Transactions';
@@ -37,6 +38,7 @@ function App() {
               <Route path="/communes" element={<Communes />} />
               <Route path="/agents" element={<Agents />} />
               <Route path="/audit-logs" element={<AuditLogs />} />
+              <Route path="/ai-logs" element={<NdiogoyeLogs />} />
               <Route path="/admin/transactions" element={<Transactions />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />

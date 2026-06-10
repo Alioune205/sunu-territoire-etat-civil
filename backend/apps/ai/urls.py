@@ -2,7 +2,7 @@
 URL configuration for the AI module.
 """
 from django.urls import path
-from .views import OcrExtractView, OcrCameraView, OcrConfirmView, FAQAssistantView, NdiogoyeChatView
+from .views import OcrExtractView, OcrCameraView, OcrConfirmView, FAQAssistantView, NdiogoyeChatView, NdiogoyeLogListView
 
 urlpatterns = [
     # OCR — Upload de fichier (image/PDF)
@@ -15,4 +15,6 @@ urlpatterns = [
     path('faq/', FAQAssistantView.as_view(), name='faq_assistant'),
     # Ndiogoye Chat IA
     path('ndiogoye/chat/', NdiogoyeChatView.as_view(), name='ndiogoye_chat'),
+    # Ndiogoye Historique Logs (Admin)
+    path('ndiogoye/logs/', NdiogoyeLogListView.as_view(), name='ndiogoye_logs'),
 ]
