@@ -1,37 +1,87 @@
-import re
 import uuid
+import logging
+from groq import Groq
+from decouple import config
+from .faq import find_closest_faq
+
+logger = logging.getLogger(__name__)
+
+# Initialisation du client Groq.
+client = None
+try:
+    api_key = config("GROQ_API_KEY", default=None)
+    if api_key:
+        client = Groq(api_key=api_key)
+    else:
+        logger.warning("GROQ_API_KEY non trouvée dans le fichier .env")
+except Exception as e:
+    logger.error(f"Erreur d'initialisation de Groq : {e}")
+
 
 def process_ndiogoye_chat(message: str, conversation_id: str = None) -> dict:
     if not conversation_id:
         conversation_id = str(uuid.uuid4())
         
-    message_lower = message.lower()
-    
     intent = "inconnu"
     action = "none"
-    reply = "Je n'ai pas bien compris. Pouvez-vous reformuler ou me préciser si vous souhaitez créer un dossier, suivre une demande, ou avoir des informations ?"
-
-    # Intentions à gérer : creer_dossier · suivre_dossier · info_procedure · salutation · inconnu
     
-    if re.search(r'\b(bonjour|salut|coucou|hello)\b', message_lower):
-        intent = "salutation"
-        reply = "Bonjour ! Je suis Ndiogoye, l'assistant IA de TERANGA CIVIL. Comment puis-je vous aider aujourd'hui ?"
-        
-    elif re.search(r'\b(créer|creer|nouveau|nouvelle|demande|obtenir|veux|voudrais|besoin)\b.*\b(dossier|acte|extrait|certificat|document)\b', message_lower) or \
-         re.search(r'\b(acte.*naissance|extrait.*naissance)\b', message_lower):
+    # ── ÉTAPE 1: FAQ-First (Recherche dans la base validée avec RapidFuzz) ──
+    faq_answer = find_closest_faq(message, threshold=65.0)
+    
+    # Déduction simple d'intention pour guider le Frontend
+    message_lower = message.lower()
+    if any(word in message_lower for word in ["créer", "creer", "demande", "nouveau"]):
         intent = "creer_dossier"
         action = "start_dossier"
-        reply = "Bien sûr ! Je peux vous aider à créer un nouveau dossier. Quel type d'acte souhaitez-vous demander (naissance, mariage, décès) et pour quelle commune ?"
-        
-    elif re.search(r'\b(suivre|suivi|état|etat|statut|où en est|ou en est)\b.*\b(dossier|demande)\b', message_lower):
+    elif any(word in message_lower for word in ["suivre", "statut", "état", "etat"]):
         intent = "suivre_dossier"
         action = "check_status"
-        reply = "Pour suivre votre dossier, veuillez me fournir le numéro de référence de votre demande."
-        
-    elif re.search(r'\b(comment|procédure|procedure|étape|etape|pièce|piece|fournir|faut-il)\b', message_lower):
-        intent = "info_procedure"
-        reply = "Pour les informations de procédure : en général, vous aurez besoin de pièces d'identité et de documents spécifiques au type d'acte (comme un certificat médical pour une naissance). Avez-vous une demande spécifique en tête ?"
-        
+
+    # Si c'est le message de fallback (score < 80%), on stoppe ici et on répond strictement.
+    # Aucune génération libre autorisée en dehors du périmètre.
+    if faq_answer == "Je ne dispose pas de cette information. Veuillez consulter un agent d'état civil.":
+        return {
+            "reply": faq_answer,
+            "action": action,
+            "intent": intent,
+            "conversation_id": conversation_id
+        }
+
+    # ── ÉTAPE 2: Reformulation IA (Optionnelle et strictement encadrée) ──
+    # Si on a trouvé une réponse validée dans la FAQ, on utilise le LLM 
+    # UNIQUEMENT pour la reformuler de façon naturelle, sans rien inventer.
+    reply = faq_answer
+    
+    if client:
+        try:
+            system_prompt = (
+                "Tu es Ndiogoye, l'assistant virtuel de TERANGA CIVIL (plateforme d'état civil du Sénégal). "
+                "Ton rôle STRICT est de reformuler de manière polie et conviviale une réponse administrative validée. "
+                "RÈGLES ABSOLUES: "
+                "1. N'INVENTE AUCUNE information supplémentaire, procédure, document ou frais. "
+                "2. Base-toi EXCLUSIVEMENT sur le texte fourni dans 'Réponse FAQ'. "
+                "3. Ne réponds jamais à une question par tes propres connaissances. "
+                "4. Sois court et chaleureux. "
+                f"\n\nRéponse FAQ stricte à utiliser : {faq_answer}"
+            )
+            
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Voici ma question : '{message}'. Reformule la réponse FAQ de manière naturelle."}
+                ],
+                model="llama-3.1-8b-instant",
+                temperature=0.1, # Température très basse = grande fidélité au texte source
+                max_tokens=250,
+            )
+            
+            reply = chat_completion.choices[0].message.content
+                
+        except Exception as e:
+            logger.error(f"Erreur lors de l'appel à l'API Groq: {e}")
+            # Fallback sécurisé: on renvoie la FAQ brute si l'IA plante
+            reply = faq_answer
+
     return {
         "reply": reply,
         "action": action,
