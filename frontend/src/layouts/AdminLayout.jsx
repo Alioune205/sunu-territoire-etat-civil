@@ -23,13 +23,7 @@ import {
 import { Button } from '@/components/ui/button';
 import logo from '@/assets/logo.jpg';
 
-// Mock notifications pour le badge (attend DEV 1C — Maïmouna Sall)
-// TODO: brancher API réelle GET /api/notifications/
-const MOCK_NOTIFICATIONS = [
-  { id: 1, title: "Nouveau dossier soumis", body: "TC-2026-089 — Acte de naissance", is_read: false, created_at: new Date().toISOString(), related_dossier_id: 89 },
-  { id: 2, title: "Dossier approuvé", body: "TC-2026-045 approuvé par l'officier", is_read: true, created_at: new Date(Date.now() - 3600000).toISOString(), related_dossier_id: 45 },
-  { id: 3, title: "Dossier rejeté", body: "TC-2026-031 — Documents insuffisants", is_read: false, created_at: new Date(Date.now() - 7200000).toISOString(), related_dossier_id: 31 },
-];
+import { getNotifications } from '@/api/notifications';
 
 const navigation = [
   { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
@@ -67,9 +61,17 @@ export function AdminLayout() {
   );
 
   useEffect(() => {
-    // TODO: brancher API réelle
-    const count = MOCK_NOTIFICATIONS.filter((n) => !n.is_read).length;
-    setUnreadCount(count);
+    const fetchNotifications = async () => {
+      try {
+        const data = await getNotifications();
+        // data.data is the array of notifications
+        const count = (data.data || []).filter((n) => !n.is_read).length;
+        setUnreadCount(count);
+      } catch (error) {
+        console.error("Erreur lors de la récupération des notifications:", error);
+      }
+    };
+    fetchNotifications();
   }, []);
 
   const handleLogout = async () => {

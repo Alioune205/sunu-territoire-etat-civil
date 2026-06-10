@@ -1,7 +1,7 @@
 // src/pages/DossierDetail.jsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getDossier, patchDossier, reviewDossier, approveDossier, rejectDossier, completeDossier } from '@/api/dossiers';
+import { getDossier, patchDossier, reviewDossier, approveDossier, rejectDossier, completeDossier, takeDossier, getDossierComments, addDossierComment } from '@/api/dossiers';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +31,8 @@ import {
   X,
   Clock,
   Flag,
+  MessageSquare,
+  Send
 } from 'lucide-react';
 
 const WORKFLOW_STEPS = [
@@ -80,6 +82,9 @@ export default function DossierDetail() {
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [loadingComments, setLoadingComments] = useState(false);
 
   useEffect(() => {
     fetchDossier();
@@ -98,10 +103,42 @@ export default function DossierDetail() {
     }
   };
 
+  const fetchComments = async () => {
+    try {
+      const data = await getDossierComments(id);
+      setComments(data.data || []);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    if (dossier) {
+      fetchComments();
+    }
+  }, [dossier]);
+
+  const handleAddComment = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    setLoadingComments(true);
+    try {
+      await addDossierComment(id, newComment);
+      setNewComment('');
+      fetchComments();
+    } catch (error) {
+      toast({ title: 'Erreur', description: 'Impossible d\'ajouter le commentaire.', variant: 'destructive' });
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
   const handleStatusChange = async (newStatus) => {
     setActionLoading(true);
     try {
-      if (newStatus === 'in_review') {
+      if (newStatus === 'take') {
+        await takeDossier(id);
+      } else if (newStatus === 'in_review') {
         await reviewDossier(id);
       } else if (newStatus === 'approved') {
         await approveDossier(id);
@@ -399,6 +436,46 @@ export default function DossierDetail() {
         </Card>
       )}
 
+      {/* Section Commentaires */}
+      <Card className="border-slate-100 shadow-sm mt-6">
+        <CardHeader className="pb-3 border-b border-slate-100">
+          <CardTitle className="text-base font-semibold text-secondary flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            Commentaires internes
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-60 overflow-y-auto p-4 space-y-4 bg-slate-50">
+            {comments.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-4 italic">Aucun commentaire pour le moment.</p>
+            ) : (
+              comments.map((c) => (
+                <div key={c.id} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-semibold text-secondary">{c.author_name || 'Agent'}</span>
+                    <span className="text-xs text-slate-400">{formatDate(c.created_at)}</span>
+                  </div>
+                  <p className="text-sm text-slate-600 whitespace-pre-wrap">{c.text}</p>
+                </div>
+              ))
+            )}
+          </div>
+          <form onSubmit={handleAddComment} className="p-4 border-t border-slate-100 bg-white flex gap-3">
+            <input
+              type="text"
+              placeholder="Écrire un commentaire..."
+              className="flex-1 px-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-primary"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              disabled={loadingComments}
+            />
+            <Button type="submit" disabled={!newComment.trim() || loadingComments} className="px-4">
+              {loadingComments ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
       {/* Zone d'actions sticky en bas */}
       {(dossier.status === 'submitted' ||
         dossier.status === 'in_review' ||
@@ -407,18 +484,33 @@ export default function DossierDetail() {
           <div className="flex items-center justify-end gap-3 max-w-7xl mx-auto">
             {dossier.status === 'submitted' && (
               <>
-                <Button
-                  onClick={() => handleStatusChange('in_review')}
-                  disabled={actionLoading}
-                  className="gap-2"
-                >
-                  {actionLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <PlayCircle className="h-4 w-4" />
-                  )}
-                  Prendre en charge
-                </Button>
+                {!dossier.assigned_agent ? (
+                  <Button
+                    onClick={() => handleStatusChange('take')}
+                    disabled={actionLoading}
+                    className="gap-2"
+                  >
+                    {actionLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <PlayCircle className="h-4 w-4" />
+                    )}
+                    Prendre en charge
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => handleStatusChange('in_review')}
+                    disabled={actionLoading}
+                    className="gap-2"
+                  >
+                    {actionLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <PlayCircle className="h-4 w-4" />
+                    )}
+                    Mettre en vérification
+                  </Button>
+                )}
                 <Button
                   variant="destructive"
                   onClick={() => setRejectDialogOpen(true)}
@@ -472,10 +564,11 @@ export default function DossierDetail() {
                   )}
                   Marquer terminé
                 </Button>
-                <Button disabled variant="outline" title="PDF disponible après livraison DEV 1B" className="gap-2">
-                  <FileDown className="h-4 w-4" /> PDF (bientôt)
-                </Button>
-                {/* TODO: brancher POST /api/dossiers/{id}/generer-pdf/ (DEV 1B) */}
+                {dossier.documents && dossier.documents.length > 0 && (
+                  <Button variant="outline" className="gap-2" onClick={() => window.open(`http://localhost:8000${dossier.documents[0].url}`, '_blank')}>
+                    <FileDown className="h-4 w-4" /> Télécharger l'acte ({dossier.documents[0].name})
+                  </Button>
+                )}
               </>
             )}
           </div>

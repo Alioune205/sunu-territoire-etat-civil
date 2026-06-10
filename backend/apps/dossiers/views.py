@@ -57,10 +57,15 @@ class DossierViewSet(viewsets.ModelViewSet):
 
         if user.role == 'citizen':
             return qs.filter(citizen=user)
-        elif user.is_admin_staff and user.commune:
-            return qs.filter(commune=user.commune)
         elif user.role == 'super_admin':
             return qs.all()
+        elif user.is_admin_staff and user.commune:
+            from django.db.models import Q
+            return qs.filter(
+                commune=user.commune
+            ).filter(
+                Q(assigned_agent__isnull=True) | Q(assigned_agent=user)
+            )
         return qs.none()
 
     def get_serializer_class(self):
@@ -222,6 +227,31 @@ class DossierViewSet(viewsets.ModelViewSet):
         return success_response(
             data=DossierDetailSerializer(dossier).data,
             message=f'Dossier assigné à {agent.full_name}.',
+        )
+
+    @extend_schema(tags=['Dossiers'], summary='Prendre en charge un dossier')
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminStaff])
+    def take(self, request, pk=None):
+        """POST /api/dossiers/{id}/take/ — Agent takes ownership of the dossier."""
+        dossier = self.get_object()
+        
+        if dossier.assigned_agent and dossier.assigned_agent != request.user:
+            return error_response(
+                message='Ce dossier est déjà pris en charge par un autre agent.',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+            
+        dossier.assigned_agent = request.user
+        if dossier.status == Dossier.Status.SUBMITTED:
+            dossier.status = Dossier.Status.IN_REVIEW
+            dossier.reviewed_at = timezone.now()
+            dossier.save(update_fields=['assigned_agent', 'status', 'reviewed_at', 'updated_at'])
+        else:
+            dossier.save(update_fields=['assigned_agent', 'updated_at'])
+
+        return success_response(
+            data=DossierDetailSerializer(dossier).data,
+            message='Dossier pris en charge avec succès.',
         )
 
     @extend_schema(tags=['Dossiers'], summary='Mettre en vérification')

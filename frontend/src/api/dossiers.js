@@ -16,8 +16,18 @@ export const patchDossier = async (id, data) => {
   return response.data;
 };
 
-export const assignDossier = async (id, agentId) => {
-  const response = await axiosClient.post(`/api/dossiers/${id}/assign/`, { agent_id: agentId });
+export const takeDossier = async (id) => {
+  const response = await axiosClient.post(`/api/dossiers/${id}/take/`);
+  return response.data;
+};
+
+export const getDossierComments = async (id) => {
+  const response = await axiosClient.get(`/api/dossiers/${id}/comments/`);
+  return response.data;
+};
+
+export const addDossierComment = async (id, text) => {
+  const response = await axiosClient.post(`/api/dossiers/${id}/comments/`, { text });
   return response.data;
 };
 

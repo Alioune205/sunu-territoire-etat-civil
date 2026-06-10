@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
-import { Shield, User, Building2, Moon, Sun, KeyRound, Save, Loader2 } from 'lucide-react';
+import { Shield, User, Building2, Moon, Sun, KeyRound, Save, Loader2, Server } from 'lucide-react';
+import { getSystemSettings, updateSystemSettings } from '@/api/settings';
 
 export default function Settings() {
   const { user, role } = useAuth();
@@ -18,6 +19,8 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSavingPref, setIsSavingPref] = useState(false);
   const [isSavingPass, setIsSavingPass] = useState(false);
+  const [sysSettings, setSysSettings] = useState({ biometric_auth_enabled: false, maintenance_mode: false });
+  const [isSavingSys, setIsSavingSys] = useState(false);
 
   // Synchroniser le thème avec la bascule globale
   useEffect(() => {
@@ -27,6 +30,12 @@ export default function Settings() {
     window.addEventListener('theme-change', handleThemeChange);
     return () => window.removeEventListener('theme-change', handleThemeChange);
   }, []);
+
+  useEffect(() => {
+    if (role === 'super_admin') {
+      getSystemSettings().then(data => setSysSettings(data)).catch(console.error);
+    }
+  }, [role]);
 
   const getRoleLabel = (r) => {
     const labels = {
@@ -100,6 +109,20 @@ export default function Settings() {
         variant: 'success',
       });
     }, 1200);
+  };
+
+  const handleSaveSystem = async (e) => {
+    e.preventDefault();
+    setIsSavingSys(true);
+    try {
+      const updated = await updateSystemSettings(sysSettings);
+      setSysSettings(updated);
+      toast({ title: 'Système mis à jour', description: 'Les paramètres globaux ont été enregistrés.', variant: 'success' });
+    } catch (error) {
+      toast({ title: 'Erreur', description: 'Échec de la sauvegarde système.', variant: 'destructive' });
+    } finally {
+      setIsSavingSys(false);
+    }
   };
 
   return (
@@ -279,6 +302,44 @@ export default function Settings() {
               </form>
             </CardContent>
           </Card>
+          
+          {role === 'super_admin' && (
+            <Card className="border-slate-100 shadow-sm border-t-4 border-t-primary">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-secondary flex items-center gap-2">
+                  <Server className="h-5 w-5 text-primary" />
+                  Paramètres du système (Global)
+                </CardTitle>
+                <CardDescription>Configurations affectant tous les utilisateurs et la plateforme.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSaveSystem} className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-base font-semibold">Authentification Biométrique</Label>
+                      <p className="text-sm text-slate-500">Activer la vérification d'empreinte/visage pour la plateforme Web et Mobile.</p>
+                    </div>
+                    <input type="checkbox" checked={sysSettings.biometric_auth_enabled} onChange={(e) => setSysSettings({...sysSettings, biometric_auth_enabled: e.target.checked})} className="w-5 h-5 accent-primary" />
+                  </div>
+                  
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                    <div>
+                      <Label className="text-base font-semibold text-error">Mode Maintenance</Label>
+                      <p className="text-sm text-slate-500">Suspendre temporairement l'accès aux citoyens et agents standard.</p>
+                    </div>
+                    <input type="checkbox" checked={sysSettings.maintenance_mode} onChange={(e) => setSysSettings({...sysSettings, maintenance_mode: e.target.checked})} className="w-5 h-5 accent-error" />
+                  </div>
+
+                  <div className="flex justify-end pt-4">
+                    <Button type="submit" disabled={isSavingSys} className="gap-2">
+                      {isSavingSys && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Enregistrer les paramètres
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

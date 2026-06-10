@@ -1,5 +1,5 @@
 // src/pages/Notifications.jsx
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -7,58 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Bell, CheckCheck, ExternalLink, Clock } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
-// Mock notifications — attend DEV 1C (Maïmouna Sall)
-// TODO: GET /api/notifications/ (DEV 1C)
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: 1,
-    title: 'Nouveau dossier soumis',
-    body: 'TC-2026-089 — Acte de naissance',
-    is_read: false,
-    created_at: new Date().toISOString(),
-    related_dossier_id: 89,
-  },
-  {
-    id: 2,
-    title: 'Dossier approuvé',
-    body: "TC-2026-045 approuvé par l'officier",
-    is_read: true,
-    created_at: new Date(Date.now() - 3600000).toISOString(),
-    related_dossier_id: 45,
-  },
-  {
-    id: 3,
-    title: 'Dossier rejeté',
-    body: 'TC-2026-031 — Documents insuffisants',
-    is_read: false,
-    created_at: new Date(Date.now() - 7200000).toISOString(),
-    related_dossier_id: 31,
-  },
-  {
-    id: 4,
-    title: 'Agent assigné',
-    body: 'TC-2026-072 — Awa Sall assignée',
-    is_read: true,
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    related_dossier_id: 72,
-  },
-  {
-    id: 5,
-    title: 'Dossier terminé',
-    body: 'TC-2026-028 — Acte de mariage finalisé',
-    is_read: true,
-    created_at: new Date(Date.now() - 172800000).toISOString(),
-    related_dossier_id: 28,
-  },
-  {
-    id: 6,
-    title: 'Nouveau dossier soumis',
-    body: 'TC-2026-095 — Certificat de résidence',
-    is_read: false,
-    created_at: new Date(Date.now() - 259200000).toISOString(),
-    related_dossier_id: 95,
-  },
-];
+import { getNotifications, markNotificationRead, markAllNotificationsRead } from '@/api/notifications';
 
 function getTimeAgo(dateStr) {
   const now = new Date();
@@ -91,7 +40,21 @@ function getDateGroup(dateStr) {
 
 export default function Notifications() {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState([]);
+  
+
+  
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const data = await getNotifications();
+        setNotifications(data.data || []);
+      } catch (error) {
+        toast({ title: 'Erreur', description: 'Impossible de charger les notifications.', variant: 'destructive' });
+      }
+    };
+    fetchNotifications();
+  }, []);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -117,24 +80,32 @@ export default function Notifications() {
     }));
   }, [notifications]);
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    toast({
-      title: 'Notifications lues',
-      description: 'Toutes les notifications ont été marquées comme lues.',
-      variant: 'success',
-    });
-    // TODO: POST /api/notifications/mark-all-read/ (DEV 1C)
+  const markAllAsRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      toast({
+        title: 'Notifications lues',
+        description: 'Toutes les notifications ont été marquées comme lues.',
+        variant: 'success',
+      });
+    } catch (error) {
+      toast({ title: 'Erreur', description: 'Impossible de marquer comme lu.', variant: 'destructive' });
+    }
   };
 
-  const handleClick = (notif) => {
-    // Marquer comme lu
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
-    );
-    // TODO: POST /api/notifications/{id}/mark-read/ (DEV 1C)
+  const handleClick = async (notif) => {
+    if (!notif.is_read) {
+      try {
+        await markNotificationRead(notif.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
+        );
+      } catch (error) {
+        console.error(error);
+      }
+    }
 
-    // Naviguer vers le dossier
     if (notif.related_dossier_id) {
       navigate(`/dossiers/${notif.related_dossier_id}`);
     }

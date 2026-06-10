@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useDossiers } from '@/hooks/useDossiers';
-import { getDossiers, patchDossier, assignDossier, approveDossier, rejectDossier } from '@/api/dossiers';
+import { getDossiers, patchDossier, takeDossier, approveDossier, rejectDossier } from '@/api/dossiers';
 import { getCommuneList } from '@/api/communes';
 import { getUserList } from '@/api/users';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -78,13 +78,10 @@ export default function Dossiers() {
   const [communes, setCommunes] = useState([]);
   const [agents, setAgents] = useState([]);
   const [searchValue, setSearchValue] = useState('');
-  const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedDossier, setSelectedDossier] = useState(null);
-  const [selectedAgent, setSelectedAgent] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  const [agentSearch, setAgentSearch] = useState('');
 
   // Charger les communes
   useEffect(() => {
@@ -144,18 +141,14 @@ export default function Dossiers() {
     }
   };
 
-  const handleAssign = async () => {
-    if (!selectedAgent || !selectedDossier) return;
+  const handleTakeOwnership = async (dossier) => {
     setActionLoading(true);
     try {
-      await assignDossier(selectedDossier.id, selectedAgent);
-      toast({ title: 'Agent assigné', description: `Agent assigné au dossier ${selectedDossier.reference}.`, variant: 'success' });
-      setAssignModalOpen(false);
-      setSelectedAgent('');
-      setSelectedDossier(null);
+      await takeDossier(dossier.id);
+      toast({ title: 'Dossier pris en charge', description: `Vous avez pris en charge le dossier ${dossier.reference}.`, variant: 'success' });
       refresh();
     } catch (error) {
-      toast({ title: 'Erreur', description: 'Impossible d\'assigner l\'agent.', variant: 'destructive' });
+      toast({ title: 'Erreur', description: 'Impossible de prendre en charge ce dossier.', variant: 'destructive' });
     } finally {
       setActionLoading(false);
     }
@@ -263,14 +256,11 @@ export default function Dossiers() {
                 <DropdownMenuItem onClick={() => navigate(`/dossiers/${dossier.id}`)}>
                   <Eye className="h-4 w-4 mr-2" /> Voir
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setSelectedDossier(dossier);
-                    setAssignModalOpen(true);
-                  }}
-                >
-                  <UserPlus className="h-4 w-4 mr-2" /> Assigner agent
-                </DropdownMenuItem>
+                {dossier.status === 'submitted' && !dossier.assigned_agent && (
+                  <DropdownMenuItem onClick={() => handleTakeOwnership(dossier)}>
+                    <UserPlus className="h-4 w-4 mr-2" /> Prendre en charge
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 {dossier.status === 'in_review' && (
                   <DropdownMenuItem onClick={() => handleApprove(dossier)}>
@@ -289,10 +279,11 @@ export default function Dossiers() {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem disabled title="PDF disponible après livraison DEV 1B">
-                  <FileDown className="h-4 w-4 mr-2" /> PDF (bientôt)
-                </DropdownMenuItem>
-                {/* TODO: brancher POST /api/dossiers/{id}/generer-pdf/ (DEV 1B) */}
+                {dossier.documents && dossier.documents.length > 0 && (
+                  <DropdownMenuItem onClick={() => window.open(`http://localhost:8000${dossier.documents[0].url}`, '_blank')}>
+                    <FileDown className="h-4 w-4 mr-2" /> Télécharger l'acte
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           );
@@ -313,12 +304,6 @@ export default function Dossiers() {
   const totalPages = Math.ceil((data.count || 0) / 20);
   const currentPage = params.page || 1;
 
-  // Filtrer les agents pour le modal
-  const filteredAgents = agents.filter(
-    (a) =>
-      a.full_name?.toLowerCase().includes(agentSearch.toLowerCase()) ||
-      a.email?.toLowerCase().includes(agentSearch.toLowerCase())
-  );
 
   return (
     <div className="space-y-6">
@@ -502,53 +487,6 @@ export default function Dossiers() {
         )}
       </Card>
 
-      {/* Modal Assignation */}
-      <Dialog open={assignModalOpen} onOpenChange={setAssignModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Assigner un agent</DialogTitle>
-            <DialogDescription>
-              Sélectionnez l'agent à assigner au dossier {selectedDossier?.reference}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Input
-              placeholder="Rechercher un agent..."
-              value={agentSearch}
-              onChange={(e) => setAgentSearch(e.target.value)}
-            />
-            <div className="max-h-[300px] overflow-y-auto space-y-1">
-              {filteredAgents.length > 0 ? (
-                filteredAgents.map((agent) => (
-                  <button
-                    key={agent.id}
-                    onClick={() => setSelectedAgent(String(agent.id))}
-                    className={`w-full text-left p-3 rounded-lg transition-colors ${
-                      selectedAgent === String(agent.id)
-                        ? 'bg-primary/10 border border-primary/30'
-                        : 'hover:bg-slate-50 border border-transparent'
-                    }`}
-                  >
-                    <p className="text-sm font-medium text-secondary">{agent.full_name}</p>
-                    <p className="text-xs text-slate-400">{agent.email}</p>
-                  </button>
-                ))
-              ) : (
-                <p className="text-sm text-slate-400 text-center py-4">Aucun agent trouvé</p>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignModalOpen(false)}>
-              Annuler
-            </Button>
-            <Button onClick={handleAssign} disabled={!selectedAgent || actionLoading}>
-              {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Confirmer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Modal Rejet */}
       <Dialog open={rejectModalOpen} onOpenChange={setRejectModalOpen}>

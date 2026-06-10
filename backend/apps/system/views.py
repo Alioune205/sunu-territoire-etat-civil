@@ -308,3 +308,43 @@ class SystemLogsView(APIView):
                 message='Erreur de lecture du fichier log.',
                 status_code=500,
             )
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .models import GlobalSettings
+from apps.shared.permissions import IsSuperAdmin
+
+class SettingsView(APIView):
+    """
+    GET /api/system/settings/
+    PUT /api/system/settings/
+    Gérer les paramètres globaux du système.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        settings = GlobalSettings.load()
+        return Response({
+            "biometric_auth_enabled": settings.biometric_auth_enabled,
+            "maintenance_mode": settings.maintenance_mode,
+            "updated_at": settings.updated_at
+        })
+
+    def put(self, request):
+        # Seul un super admin peut modifier
+        if not hasattr(request.user, 'role') or request.user.role != 'super_admin':
+            return Response({"error": "Unauthorized"}, status=403)
+            
+        settings = GlobalSettings.load()
+        
+        if 'biometric_auth_enabled' in request.data:
+            settings.biometric_auth_enabled = request.data['biometric_auth_enabled']
+        if 'maintenance_mode' in request.data:
+            settings.maintenance_mode = request.data['maintenance_mode']
+            
+        settings.save()
+        return Response({
+            "biometric_auth_enabled": settings.biometric_auth_enabled,
+            "maintenance_mode": settings.maintenance_mode,
+            "updated_at": settings.updated_at
+        })
