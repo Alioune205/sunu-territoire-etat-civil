@@ -17,6 +17,10 @@ from .validators import validate_citizen_document, check_dossier_duplicate
 from .chatbot import chat_orchestrator
 from .faq import get_faq_answer
 from .ndiogoye import process_ndiogoye_chat
+from .models import NdiogoyeChatLog
+from .serializers import NdiogoyeChatLogSerializer
+from rest_framework import generics
+from apps.shared.permissions import IsAdminStaff
 
 
 class OcrExtractView(APIView):
@@ -187,4 +191,23 @@ class NdiogoyeChatView(APIView):
         if conversation_id and isinstance(result, dict):
             result['conversation_id'] = conversation_id
             
+        # Sauvegarde en base de données
+        if isinstance(result, dict):
+            NdiogoyeChatLog.objects.create(
+                user=user,
+                session_id=result.get('conversation_id'),
+                message=message,
+                reply=result.get('reply'),
+                intent=result.get('intent'),
+                action=result.get('action')
+            )
         return Response(result)
+
+class NdiogoyeLogListView(generics.ListAPIView):
+    """
+    GET /api/ai/ndiogoye/logs/
+    Liste paginée de l'historique des conversations avec le chatbot (Admin/Agent uniquement).
+    """
+    queryset = NdiogoyeChatLog.objects.select_related('user').all()
+    serializer_class = NdiogoyeChatLogSerializer
+    permission_classes = [IsAuthenticated, IsAdminStaff]
