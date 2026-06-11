@@ -71,13 +71,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
                 is_active=True
             )
             if agents.exists():
-                FCMService.send_bulk_notification(
-                    users=agents,
-                    title="Nouveau dossier soumis à traiter",
-                    body=f"Le dossier {instance.reference} est en attente dans la file commune.",
-                    notification_type=Notification.TypeChoices.INFO,
-                    data={'dossier_id': str(instance.id)}
-                )
+                pass # FCMService.send_bulk_notification is not implemented
         return
 
     old_status = getattr(instance, '_old_status', None)
@@ -105,13 +99,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             is_active=True
         )
         if agents.exists():
-            FCMService.send_bulk_notification(
-                users=agents,
-                title="Nouveau dossier soumis à traiter",
-                body=f"Le dossier {instance.reference} est en attente dans la file commune.",
-                notification_type=Notification.TypeChoices.INFO,
-                data={'dossier_id': str(instance.id)}
-            )
+            pass # FCMService.send_bulk_notification is not implemented
 
     elif instance.status == Dossier.Status.IN_REVIEW and instance.assigned_agent:
         # Notifier l'agent assigné
@@ -131,7 +119,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             data={'dossier_id': str(instance.id)}
         )
 
-    elif instance.status == Dossier.Status.APPROVED:
+    elif instance.status == Dossier.Status.VALIDATED:
         send_notification_async(
             user=instance.citizen,
             title="Dossier approuvé ✅",
@@ -149,7 +137,7 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             data={'dossier_id': str(instance.id)}
         )
 
-    elif instance.status == Dossier.Status.COMPLETED:
+    elif instance.status == Dossier.Status.DELIVERED:
         send_notification_async(
             user=instance.citizen,
             title="Document disponible 🎉",

@@ -21,6 +21,8 @@ import {
   ShieldAlert,
   Activity,
   Bot,
+  GitBranch,
+  Archive,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import logo from '@/assets/logo.jpg';
@@ -29,7 +31,7 @@ import { getNotifications } from '@/api/notifications';
 
 const navigation = [
   { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Dossiers', href: '/dossiers', icon: FolderOpen },
+  { name: 'Banque des Demandes', href: '/dossiers', icon: Archive },
   { name: 'Communes', href: '/communes', icon: Building2 },
   { name: 'Agents', href: '/agents', icon: Users },
   { name: 'Journal d\'audit', href: '/audit-logs', icon: ScrollText },
@@ -47,13 +49,15 @@ export function AdminLayout() {
 
   const baseNavigation = [
     { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Dossiers', href: '/dossiers', icon: FolderOpen },
+    { name: 'Banque des Demandes', href: '/dossiers', icon: Archive },
+    { name: 'Citoyens', href: '/citoyens', icon: Users },
   ];
 
   const filteredNavigation = [...baseNavigation];
   
   if (role === 'civil_admin' || role === 'super_admin') {
     filteredNavigation.push({ name: 'Agents', href: '/agents', icon: Users });
+    filteredNavigation.push({ name: 'Dispatching IA', href: '/dispatching', icon: GitBranch });
   }
   
   if (role === 'super_admin') {
@@ -96,7 +100,7 @@ export function AdminLayout() {
   const getCurrentPageTitle = () => {
     const currentNav = filteredNavigation.find((nav) => location.pathname.startsWith(nav.href));
     if (location.pathname.startsWith('/dossiers/') && location.pathname !== '/dossiers') {
-      return 'Détail du dossier';
+      return 'Détail de la demande';
     }
     return currentNav?.name || 'Dashboard';
   };
@@ -186,10 +190,14 @@ export function AdminLayout() {
         {/* User info en bas du sidebar */}
         <div className="px-4 py-4 border-t border-white/10">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-amber-dim border-[1.5px] border-amber flex items-center justify-center">
-              <span className="text-amber font-semibold text-sm">
-                {user?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
-              </span>
+            <div className="w-9 h-9 rounded-full bg-amber-dim border-[1.5px] border-amber flex items-center justify-center overflow-hidden">
+              {user?.avatar ? (
+                <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-amber font-semibold text-sm">
+                  {user?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                </span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-[#F0F4FF] truncate">
@@ -228,14 +236,14 @@ export function AdminLayout() {
             {role === 'super_admin' && (
               <>
                 <NavLink
-                  to="/admin/audit-logs"
+                  to="/audit-logs"
                   className="hidden lg:flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 transition-all hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
                 >
                   <Activity className="h-4 w-4" />
                   Audit Logs
                 </NavLink>
                 <NavLink
-                  to="/admin/ai-logs"
+                  to="/supervision-ia"
                   className="hidden lg:flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 transition-all hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
                 >
                   <Bot className="h-4 w-4" />
@@ -297,10 +305,14 @@ export function AdminLayout() {
                   {getRoleLabel(role)}
                 </p>
               </div>
-              <div className="w-9 h-9 rounded-full bg-amber-dim border-[1.5px] border-amber flex items-center justify-center shadow-md">
-                <span className="text-amber font-semibold text-sm">
-                  {user?.full_name?.charAt(0) || 'U'}
-                </span>
+              <div className="w-9 h-9 rounded-full bg-amber-dim border-[1.5px] border-amber flex items-center justify-center shadow-md overflow-hidden">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-amber font-semibold text-sm">
+                    {user?.full_name?.charAt(0) || 'U'}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -319,7 +331,7 @@ export function AdminLayout() {
 
         {/* Page content */}
         <main className="flex-1 p-6 overflow-y-auto animate-enter">
-          {role === 'super_admin' && (
+          {role === 'super_admin' && location.pathname.includes('/admin/transactions') && (
             <div className="mb-6 flex items-center justify-between p-3 bg-[#FFFBEB] dark:bg-[#F59E0B]/5 border-l-4 border-l-[#F59E0B] border-y border-r border-[#F59E0B]/20 rounded-r-lg shadow-sm animate-enter">
               <div className="flex items-center gap-3">
                 <ShieldAlert className="h-[18px] w-[18px] text-[#F59E0B] flex-shrink-0" />

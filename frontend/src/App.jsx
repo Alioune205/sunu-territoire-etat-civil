@@ -9,8 +9,12 @@ import { Toaster } from '@/components/ui/toaster.jsx';
 // Pages
 import Login from '@/pages/Login.jsx';
 import Dashboard from '@/pages/Dashboard.jsx';
+import DashboardAttribution from '@/pages/DashboardAttribution.jsx';
+import CentreSupervision from '@/components/attribution/CentreSupervision.jsx';
+import JournalAudit from '@/components/attribution/JournalAudit.jsx';
 import Dossiers from '@/pages/Dossiers.jsx';
 import DossierDetail from '@/pages/DossierDetail.jsx';
+import CitoyenRepertoire from '@/pages/CitoyenRepertoire.jsx';
 import Communes from '@/pages/Communes.jsx';
 import Agents from '@/pages/Agents.jsx';
 import AuditLogs from '@/pages/AuditLogs.jsx';
@@ -34,10 +38,14 @@ function App() {
           <Route element={<PrivateRoute />}>
             <Route element={<AdminLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/attribution" element={<DashboardAttribution />} />
               <Route path="/dossiers" element={<Dossiers />} />
               <Route path="/dossiers/:id" element={<DossierDetail />} />
+              <Route path="/citoyens" element={<CitoyenRepertoire />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/dispatching" element={<DashboardAttribution />} />
+              <Route path="/supervision-ia" element={<DashboardAttribution />} />
 
               {/* Réservé Admin Civil et Super Admin */}
               <Route element={<RoleRoute allowedRoles={['civil_admin', 'super_admin']} />}>
@@ -47,7 +55,7 @@ function App() {
               {/* Réservé Super Admin */}
               <Route element={<RoleRoute allowedRoles={['super_admin']} />}>
                 <Route path="/communes" element={<Communes />} />
-                <Route path="/audit-logs" element={<AuditLogs />} />
+                <Route path="/audit-logs" element={<JournalAudit />} />
                 <Route path="/ai-logs" element={<NdiogoyeLogs />} />
                 <Route path="/admin/transactions" element={<Transactions />} />
               </Route>

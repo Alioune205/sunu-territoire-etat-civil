@@ -97,7 +97,7 @@ class DashboardStatsService:
             qs = qs.filter(commune=commune)
 
         total = qs.count()
-        completed = qs.filter(status=Dossier.Status.COMPLETED).count()
+        completed = qs.filter(status=Dossier.Status.DELIVERED).count()
 
         # Temps de traitement moyen (une seule requête agrégée)
         avg_delta = qs.filter(
@@ -117,7 +117,7 @@ class DashboardStatsService:
             'total_dossiers': total,
             'total_pending': qs.filter(status=Dossier.Status.SUBMITTED).count(),
             'total_in_review': qs.filter(status=Dossier.Status.IN_REVIEW).count(),
-            'total_approved': qs.filter(status=Dossier.Status.APPROVED).count(),
+            'total_approved': qs.filter(status=Dossier.Status.VALIDATED).count(),
             'total_rejected': qs.filter(status=Dossier.Status.REJECTED).count(),
             'total_completed': completed,
             'total_citizens': User.objects.filter(role='citizen', **user_filter).count(),
@@ -250,8 +250,8 @@ class DashboardStatsService:
             total_completed=Count(
                 'assigned_dossiers',
                 filter=Q(assigned_dossiers__status__in=[
-                    Dossier.Status.COMPLETED,
-                    Dossier.Status.APPROVED,
+                    Dossier.Status.DELIVERED,
+                    Dossier.Status.VALIDATED,
                 ]),
             ),
             total_rejected=Count(

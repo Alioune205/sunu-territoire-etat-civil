@@ -79,7 +79,9 @@ export default function Agents() {
       const data = await getUserList(params);
       setUsers(Array.isArray(data) ? data : data.results || []);
     } catch (error) {
-      toast({ title: 'Erreur', description: 'Impossible de charger les agents.', variant: 'destructive' });
+      if (error?.response?.status !== 401 && error?.status !== 401) {
+        toast({ title: 'Erreur', description: 'Impossible de charger les agents.', variant: 'destructive' });
+      }
     } finally {
       setLoading(false);
     }

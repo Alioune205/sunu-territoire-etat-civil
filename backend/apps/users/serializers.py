@@ -43,6 +43,7 @@ class UserSerializer(serializers.ModelSerializer):
             'full_name',
             'role',
             'commune',
+            'avatar',
             'is_verified',
             'is_active',
             'profile',
@@ -70,6 +71,7 @@ class UserListSerializer(serializers.ModelSerializer):
             'full_name',
             'role',
             'commune',
+            'avatar',
             'is_verified',
             'is_active',
             'created_at',
@@ -87,6 +89,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'commune',
+            'avatar',
         ]
 
 

@@ -46,6 +46,8 @@ urlpatterns = [
     path('api/system/', include('apps.system.urls')),
     path('api/services/', include('apps.services.urls')),
     path('api/', include('apps.payments.urls')),
+    path('api/attribution/', include('apps.etat_civil.api.attribution_urls')),
+    path('api/', include('apps.etat_civil.api.citoyen_urls')),
 ]
 
 # Serve media files in development

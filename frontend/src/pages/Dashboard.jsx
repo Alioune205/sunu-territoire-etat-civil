@@ -53,8 +53,10 @@ const STATUS_COLORS = {
   submitted: '#F59E0B',
   in_review: '#378ADD',
   approved: '#10B981',
+  validated: '#10B981',
   rejected: '#EF4444',
   completed: '#1D9E75',
+  delivered: '#1D9E75',
 };
 
 const STATUS_LABELS = {
@@ -62,8 +64,10 @@ const STATUS_LABELS = {
   submitted: 'Soumis',
   in_review: 'En vérification',
   approved: 'Approuvés',
+  validated: 'Validés',
   rejected: 'Rejetés',
   completed: 'Terminés',
+  delivered: 'Délivrés',
 };
 
 // Custom EmptyState component unifié
@@ -125,7 +129,7 @@ function CustomAreaTooltip({ active, payload, label, monthlyData = [] }) {
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg shadow-xl p-3 border-none ring-1 ring-black/5 dark:ring-white/10">
       <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{label}</p>
-      <p className="text-lg font-bold text-primary dark:text-blue-400 mt-1">{currentVal} dossiers</p>
+      <p className="text-lg font-bold text-primary dark:text-blue-400 mt-1">{currentVal} demandes</p>
       <p className={`text-xs font-medium mt-1 ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
         {diffText}
       </p>
@@ -143,7 +147,7 @@ function CustomPieTooltip({ active, payload }) {
     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg shadow-xl p-3 border-none ring-1 ring-black/5 dark:ring-white/10">
       <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{item?.name || '—'}</p>
       <p className="text-sm font-bold mt-1" style={{ color: fillColor }}>
-        {item?.value || 0} dossiers ({pct}%)
+        {item?.value || 0} demandes ({pct}%)
       </p>
     </div>
   );
@@ -155,19 +159,19 @@ const exportCSV = (stats, globalStats) => {
   
   const headers = ['Métrique', 'Valeur'];
   const rows = [
-    ['Total Dossiers', stats.total_dossiers],
+    ['Total Demandes', stats.total_dossiers],
     ['Soumis', stats.status_counts?.submitted || 0],
     ['En vérification', stats.status_counts?.in_review || 0],
-    ['Approuvés', stats.status_counts?.approved || 0],
+    ['Approuvés/Validés', (stats.status_counts?.validated || stats.status_counts?.approved) || 0],
     ['Rejetés', stats.status_counts?.rejected || 0],
-    ['Terminés', stats.status_counts?.completed || 0],
+    ['Terminés/Délivrés', (stats.status_counts?.delivered || stats.status_counts?.completed) || 0],
     ['Taux d\'approbation', `${globalStats?.taux_approbation || 0}%`],
     ['Temps moyen de traitement', stats.average_review_time || 'N/A'],
   ];
 
   if (stats.dossiers_by_commune) {
     rows.push(['', '']);
-    rows.push(['Commune', 'Nombre de dossiers']);
+    rows.push(['Commune', 'Nombre de demandes']);
     stats.dossiers_by_commune.forEach((c) => {
       rows.push([c.commune, c.count]);
     });
@@ -277,7 +281,7 @@ export default function Dashboard() {
                 <span className="text-secondary dark:text-slate-300 font-medium">{entry.value}</span>
               </div>
               <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                <span>{item ? item.value : 0} dossiers</span>
+                <span>{item ? item.value : 0} demandes</span>
                 <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-xs">{pct}%</span>
               </div>
             </div>
@@ -337,7 +341,7 @@ export default function Dashboard() {
       {/* Section A — 6 KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <KPICard
-          title="Total dossiers"
+          title="Total demandes"
           value={stats?.total_dossiers ?? 0}
           icon={FileText}
           iconColorClass="text-blue-700 bg-blue-50 dark:bg-blue-900/20"
@@ -364,13 +368,13 @@ export default function Dashboard() {
           onClick={() => navigate('/dossiers?status=in_review')}
         />
         <KPICard
-          title="Approuvés"
-          value={stats?.status_counts?.approved ?? 0}
+          title="Validés"
+          value={stats?.status_counts?.validated ?? (stats?.status_counts?.approved ?? 0)}
           icon={CheckCircle}
           iconColorClass="text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
           trend={null}
           loading={loading}
-          onClick={() => navigate('/dossiers?status=approved')}
+          onClick={() => navigate('/dossiers?status=validated')}
         />
         <KPICard
           title="Rejetés"
@@ -407,12 +411,12 @@ export default function Dashboard() {
               <EmptyState
                 variant="no-data"
                 title="Aucune activité ce mois"
-                description="Créez votre premier dossier pour générer des statistiques détaillées et suivre l'évolution."
-                actionLabel="Nouveau dossier"
+                description="Créez votre première demande pour générer des statistiques détaillées et suivre l'évolution."
+                actionLabel="Nouvelle demande"
                 onAction={() => navigate('/dossiers')}
               />
             ) : (
-              <div className="h-[300px]" aria-label="Graphique de l'activité mensuelle des dossiers">
+              <div className="h-[300px]" aria-label="Graphique de l'activité mensuelle des demandes">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={monthlyData} margin={{ top: 20, right: 20, left: -20, bottom: 16 }}>
                     <defs>
@@ -465,10 +469,10 @@ export default function Dashboard() {
               <EmptyState
                 variant="no-data"
                 title="Aucune donnée de répartition disponible"
-                description="Aucun dossier n'a été enregistré pour le moment."
+                description="Aucune demande n'a été enregistrée pour le moment."
               />
             ) : (
-              <div className="relative flex flex-col sm:flex-row items-center justify-around h-[300px] gap-4" aria-label="Graphique circulaire de répartition des dossiers par statut">
+              <div className="relative flex flex-col sm:flex-row items-center justify-around h-[300px] gap-4" aria-label="Graphique circulaire de répartition des demandes par statut">
                 <div className="relative w-[200px] h-[200px] flex-shrink-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -495,7 +499,7 @@ export default function Dashboard() {
                       {stats?.total_dossiers ?? 0}
                     </span>
                     <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold mt-0.5">
-                      Dossiers
+                      Demandes
                     </span>
                   </div>
                 </div>
@@ -521,7 +525,7 @@ export default function Dashboard() {
         <Card className="lg:col-span-3 border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-[20px] flex flex-col">
           <CardHeader className="p-0 pb-4">
             <CardTitle className="text-base font-semibold text-secondary dark:text-white">
-              Dossiers par type
+              Demandes par type
             </CardTitle>
             <p className="text-[11px] text-muted-foreground mt-0.5">Données cumulées depuis l'ouverture du système</p>
           </CardHeader>
@@ -529,7 +533,7 @@ export default function Dashboard() {
             {loading ? (
               <Skeleton className="h-[300px] w-full rounded-xl" />
             ) : (
-              <div className="h-[300px]" aria-label="Graphique en barres des dossiers par type administratif">
+              <div className="h-[300px]" aria-label="Graphique en barres des demandes par type administratif">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={MOCK_BY_TYPE}
@@ -557,7 +561,7 @@ export default function Dashboard() {
                     <RechartsTooltip
                       formatter={(value) => {
                         const pct = totalMockDossiers > 0 ? ((value / totalMockDossiers) * 100).toFixed(1) : 0;
-                        return [`${value} dossiers (${pct}%)`, 'Proportion'];
+                        return [`${value} demandes (${pct}%)`, 'Proportion'];
                       }}
                       contentStyle={{
                         borderRadius: '8px',
@@ -626,7 +630,7 @@ export default function Dashboard() {
                           {commune.commune}
                         </span>
                         <span className="text-slate-500 dark:text-slate-400 font-semibold text-[13px]">
-                          {commune.count} dossiers
+                          {commune.count} demandes
                         </span>
                       </div>
                       <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">

@@ -92,11 +92,21 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data)
 
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=['get', 'patch'], permission_classes=[IsAuthenticated])
     def me(self, request):
-        """Get the current authenticated user's data."""
-        serializer = UserSerializer(request.user)
-        return success_response(data=serializer.data)
+        """Get or update the current authenticated user's data."""
+        if request.method == 'GET':
+            serializer = UserSerializer(request.user)
+            return success_response(data=serializer.data)
+
+        # PATCH
+        serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(
+            data=UserSerializer(request.user).data,
+            message='Profil utilisateur mis à jour avec succès.',
+        )
 
 
 class CitizenProfileViewSet(viewsets.ModelViewSet):

@@ -52,8 +52,18 @@ class Dossier(TimeStampedModel):
     citizen = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='dossiers',
         verbose_name='Citoyen',
+    )
+    citoyen_guichet = models.ForeignKey(
+        'etat_civil.Citoyen',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dossiers',
+        verbose_name='Citoyen (Guichet)',
     )
     assigned_agent = models.ForeignKey(
         settings.AUTH_USER_MODEL,

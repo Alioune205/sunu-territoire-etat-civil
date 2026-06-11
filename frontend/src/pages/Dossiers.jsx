@@ -6,6 +6,8 @@ import { useDossiers } from '@/hooks/useDossiers';
 import { getDossiers, patchDossier, assignDossier, approveDossier, rejectDossier } from '@/api/dossiers';
 import { getCommuneList } from '@/api/communes';
 import { getUserList } from '@/api/users';
+import { attributionApi } from '@/services/attributionApi';
+import { TYPE_DOSSIER_LABELS, STATUT_LABELS } from '@/utils/labels';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +72,44 @@ const TYPE_OPTIONS = [
   { value: 'residence_certificate', label: 'Certificat de résidence' },
   { value: 'other', label: 'Autre' },
 ];
+
+const AutoAssignButton = ({ dossier, onAssign }) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleAutoAssign = async () => {
+    setLoading(true);
+    try {
+      const recs = await attributionApi.getRecommandation(dossier.id);
+      const topAgentId = recs?.recommandations?.[0]?.agent_id;
+      if (!topAgentId) throw new Error("Aucune recommandation disponible");
+      
+      await attributionApi.reattribuerDossier(
+        dossier.id, 
+        topAgentId, 
+        "Auto-assignation depuis la Banque des Demandes"
+      );
+      toast({ title: 'Succès', description: 'Agent assigné avec succès.', variant: 'success' });
+      onAssign();
+    } catch (error) {
+      console.error(error);
+      toast({ title: 'Erreur', description: 'Impossible d\'assigner automatiquement.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button 
+      size="sm" 
+      onClick={handleAutoAssign} 
+      disabled={loading}
+      style={{ backgroundColor: '#1D4ED8', borderRadius: '0.375rem' }}
+      className="text-white hover:bg-blue-800 h-7 text-xs px-3"
+    >
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Assigner'}
+    </Button>
+  );
+};
 
 export default function Dossiers() {
   const navigate = useNavigate();
@@ -138,15 +178,15 @@ export default function Dossiers() {
       
     const ws = new WebSocket(wsUrl);
 
-    ws.onopen = () => console.log('🔗 Connecté au serveur Temps Réel (Dossiers)');
+    ws.onopen = () => console.log('🔗 Connecté au serveur Temps Réel (Banque des Demandes)');
 
     ws.onmessage = (event) => {
       const parsed = JSON.parse(event.data);
       if (parsed.message === 'new_dossier') {
         // Notification toast visuelle
         toast({
-          title: 'Nouveau Dossier ! 📄',
-          description: `Un nouveau certificat (${parsed.data.reference}) vient d'être soumis.`,
+          title: 'Nouvelle demande ! 📄',
+          description: `Une nouvelle demande (${parsed.data.reference}) vient d'être soumise.`,
           variant: 'default',
           className: 'bg-blue-50 border-blue-200 text-blue-900',
         });
@@ -166,10 +206,10 @@ export default function Dossiers() {
     setActionLoading(true);
     try {
       await approveDossier(dossier.id);
-      toast({ title: 'Dossier approuvé', description: `${dossier.reference} a été approuvé.`, variant: 'success' });
+      toast({ title: 'Demande approuvée', description: `${dossier.reference} a été approuvée.`, variant: 'success' });
       refresh();
     } catch (error) {
-      toast({ title: 'Erreur', description: 'Impossible d\'approuver le dossier.', variant: 'destructive' });
+      toast({ title: 'Erreur', description: 'Impossible d\'approuver la demande.', variant: 'destructive' });
     } finally {
       setActionLoading(false);
     }
@@ -180,7 +220,7 @@ export default function Dossiers() {
     setActionLoading(true);
     try {
       await assignDossier(selectedDossier.id, selectedAgent);
-      toast({ title: 'Agent assigné', description: `Agent assigné au dossier ${selectedDossier.reference}.`, variant: 'success' });
+      toast({ title: 'Agent assigné', description: `Agent assigné à la demande ${selectedDossier.reference}.`, variant: 'success' });
       setAssignModalOpen(false);
       setSelectedAgent('');
       setSelectedDossier(null);
@@ -197,13 +237,13 @@ export default function Dossiers() {
     setActionLoading(true);
     try {
       await rejectDossier(selectedDossier.id, rejectionReason);
-      toast({ title: 'Dossier rejeté', description: `${selectedDossier.reference} a été rejeté.`, variant: 'success' });
+      toast({ title: 'Demande rejetée', description: `${selectedDossier.reference} a été rejetée.`, variant: 'success' });
       setRejectModalOpen(false);
       setRejectionReason('');
       setSelectedDossier(null);
       refresh();
     } catch (error) {
-      toast({ title: 'Erreur', description: 'Impossible de rejeter le dossier.', variant: 'destructive' });
+      toast({ title: 'Erreur', description: 'Impossible de rejeter la demande.', variant: 'destructive' });
     } finally {
       setActionLoading(false);
     }
@@ -228,13 +268,17 @@ export default function Dossiers() {
         accessorKey: 'type_display',
         header: 'Type',
         cell: ({ row }) => (
-          <span className="text-sm text-slate-600">{row.original.type_display}</span>
+          <span className="text-sm text-slate-600">{TYPE_DOSSIER_LABELS[row.original.type] || row.original.type_display}</span>
         ),
       },
       {
         accessorKey: 'status',
         header: 'Statut',
-        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+        cell: ({ row }) => (
+          <span className="text-sm font-medium">
+            {STATUT_LABELS[row.original.status] || <StatusBadge status={row.original.status} />}
+          </span>
+        ),
       },
       {
         accessorKey: 'citizen',
@@ -255,13 +299,16 @@ export default function Dossiers() {
       {
         accessorKey: 'assigned_agent',
         header: 'Agent',
-        cell: ({ row }) => (
-          <span className="text-sm text-slate-600">
-            {row.original.assigned_agent?.full_name || (
-              <span className="text-slate-400 italic">Non assigné</span>
-            )}
-          </span>
-        ),
+        cell: ({ row }) => {
+          if (row.original.assigned_agent) {
+            return (
+              <span className="text-sm text-slate-600">
+                {row.original.assigned_agent.full_name || row.original.assigned_agent.email}
+              </span>
+            );
+          }
+          return <AutoAssignButton dossier={row.original} onAssign={refresh} />;
+        },
       },
       {
         accessorKey: 'created_at',
@@ -354,9 +401,9 @@ export default function Dossiers() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-secondary">Dossiers</h1>
+        <h1 className="text-2xl font-bold text-secondary">Banque des Demandes</h1>
         <p className="text-sm text-slate-500 mt-1">
-          {data.count || 0} dossier{(data.count || 0) > 1 ? 's' : ''} au total
+          {data.count || 0} demande{(data.count || 0) > 1 ? 's' : ''} enregistrée{(data.count || 0) > 1 ? 's' : ''}
         </p>
       </div>
 
@@ -474,7 +521,7 @@ export default function Dossiers() {
               ) : (
                 <tr>
                   <td colSpan={columns.length} className="px-4 py-12 text-center text-slate-400">
-                    Aucun dossier trouvé
+                    Aucune demande trouvée
                   </td>
                 </tr>
               )}
@@ -539,7 +586,7 @@ export default function Dossiers() {
           <DialogHeader>
             <DialogTitle>Assigner un agent</DialogTitle>
             <DialogDescription>
-              Sélectionnez l'agent à assigner au dossier {selectedDossier?.reference}
+              Sélectionnez l'agent à assigner à la demande {selectedDossier?.reference}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -585,9 +632,9 @@ export default function Dossiers() {
       <Dialog open={rejectModalOpen} onOpenChange={setRejectModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-danger">Rejeter le dossier</DialogTitle>
+            <DialogTitle className="text-danger">Rejeter la demande</DialogTitle>
             <DialogDescription>
-              Indiquez le motif du rejet pour le dossier {selectedDossier?.reference}
+              Indiquez le motif du rejet pour la demande {selectedDossier?.reference}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

@@ -84,7 +84,7 @@ class Command(BaseCommand):
         # 3. Create Dossiers
         if citizens and dakar_plateau:
             dossiers_data = [
-                {'citizen': citizens[0], 'commune': dakar_plateau, 'type': Dossier.Type.BIRTH_CERTIFICATE, 'status': Dossier.Status.COMPLETED, 'notes': 'Demande traitée rapidement.'},
+                {'citizen': citizens[0], 'commune': dakar_plateau, 'type': Dossier.Type.BIRTH_CERTIFICATE, 'status': Dossier.Status.DELIVERED, 'notes': 'Demande traitée rapidement.'},
                 {'citizen': citizens[0], 'commune': dakar_plateau, 'type': Dossier.Type.RESIDENCE_CERTIFICATE, 'status': Dossier.Status.IN_REVIEW},
                 {'citizen': citizens[1], 'commune': dakar_plateau, 'type': Dossier.Type.MARRIAGE_CERTIFICATE, 'status': Dossier.Status.SUBMITTED},
                 {'citizen': citizens[1], 'commune': dakar_plateau, 'type': Dossier.Type.BIRTH_CERTIFICATE, 'status': Dossier.Status.DRAFT},
@@ -95,7 +95,7 @@ class Command(BaseCommand):
             for d_data in dossiers_data:
                 if not Dossier.objects.filter(citizen=d_data['citizen'], type=d_data['type']).exists():
                     dossier = Dossier.objects.create(**d_data)
-                    if dossier.status == Dossier.Status.COMPLETED:
+                    if dossier.status == Dossier.Status.DELIVERED:
                         dossier.submitted_at = timezone.now()
                         dossier.reviewed_at = timezone.now()
                         dossier.completed_at = timezone.now()

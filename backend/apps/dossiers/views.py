@@ -325,19 +325,58 @@ class DossierViewSet(viewsets.ModelViewSet):
         """POST /api/dossiers/{id}/complete/ — Mark as completed."""
         dossier = self.get_object()
 
-        if dossier.status != Dossier.Status.APPROVED:
+        if dossier.status != Dossier.Status.VALIDATED:
             return error_response(
                 message='Seul un dossier approuvé peut être marqué comme terminé.',
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
-        dossier.status = Dossier.Status.COMPLETED
+        dossier.status = Dossier.Status.DELIVERED
         dossier.save(update_fields=['status', 'updated_at'])
 
         return success_response(
             data=DossierDetailSerializer(dossier).data,
             message='Dossier marqué comme terminé.',
         )
+
+    @extend_schema(tags=['Dossiers'], summary='Télécharger le PDF')
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated], url_path='download-pdf')
+    def download_pdf(self, request, pk=None):
+        """GET /api/dossiers/{id}/download-pdf/"""
+        from django.http import FileResponse
+        dossier = self.get_object()
+
+        if dossier.status not in [Dossier.Status.VALIDATED, Dossier.Status.DELIVERED, Dossier.Status.GENERATED]:
+            return error_response(
+                message="Le document PDF n'est pas encore disponible.",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        from apps.documents.models import GeneratedCertificate
+        try:
+            cert = GeneratedCertificate.objects.get(dossier=dossier)
+        except GeneratedCertificate.DoesNotExist:
+            from apps.dossiers.services.pdf_generator import generate_signed_certificate
+            try:
+                cert = generate_signed_certificate(dossier, officier=request.user)
+            except Exception as e:
+                return error_response(
+                    message=f"Erreur lors de la génération du PDF : {str(e)}",
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        if not cert.pdf_file:
+            return error_response(message="Le fichier PDF est introuvable.", status_code=status.HTTP_404_NOT_FOUND)
+
+        try:
+            response = FileResponse(cert.pdf_file.open('rb'), content_type='application/pdf')
+            response['Content-Disposition'] = f'inline; filename="Certificat_{dossier.reference}.pdf"'
+            return response
+        except Exception as e:
+            return error_response(
+                message=f"Erreur lors de la lecture du fichier : {str(e)}",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     # =====================================================
     # COMMENTS

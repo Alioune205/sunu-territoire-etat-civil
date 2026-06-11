@@ -64,6 +64,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         related_name='users',
         verbose_name='Commune',
     )
+    avatar = models.ImageField(
+        upload_to='users/avatars/',
+        null=True,
+        blank=True,
+        verbose_name='Avatar',
+    )
     is_verified = models.BooleanField(
         default=False,
         verbose_name='Vérifié',

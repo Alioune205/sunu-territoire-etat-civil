@@ -113,7 +113,7 @@ class DashboardStatsView(APIView):
 
         # --- NOUVELLES STATISTIQUES ---
         total = total_dossiers
-        dossiers_approuves = Dossier.objects.filter(status__in=[Dossier.Status.APPROVED, Dossier.Status.COMPLETED]).count()
+        dossiers_approuves = Dossier.objects.filter(status__in=[Dossier.Status.VALIDATED, Dossier.Status.DELIVERED]).count()
         taux_approbation = round((dossiers_approuves / total) * 100, 1) if total > 0 else 0.0
 
         dossiers_par_type_qs = Dossier.objects.values('type').annotate(count=Count('id'))
@@ -172,7 +172,7 @@ class GlobalStatsView(APIView):
             ),
             valides=Count(
                 'id',
-                filter=Q(status=Dossier.Status.APPROVED)
+                filter=Q(status=Dossier.Status.VALIDATED)
             ),
             rejetes=Count(
                 'id',
@@ -209,7 +209,7 @@ class PerformanceStatsView(APIView):
         )
         avg_time_query = Dossier.objects.filter(
             status__in=[
-                Dossier.Status.APPROVED,
+                Dossier.Status.VALIDATED,
             ],
             submitted_at__isnull=False,
             completed_at__isnull=False

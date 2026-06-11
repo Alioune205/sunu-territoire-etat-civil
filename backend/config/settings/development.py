@@ -121,3 +121,10 @@ LOGGING = {
         },
     },
 }
+
+# ==============================================================================
+# CELERY (Local Eager Mode to bypass Redis on Windows)
+# ==============================================================================
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_STORE_EAGER_RESULT = True
+

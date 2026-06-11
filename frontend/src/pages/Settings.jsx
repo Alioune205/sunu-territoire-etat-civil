@@ -9,6 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/components/ui/use-toast';
 import { Shield, User, Building2, Moon, Sun, KeyRound, Save, Loader2 } from 'lucide-react';
 
+import AvatarUpload from '@/components/settings/AvatarUpload';
+import FormulaireProfilEdit from '@/components/settings/FormulaireProfilEdit';
+import IndicateurForceMotDePasse from '@/components/settings/IndicateurForceMotDePasse';
+import SessionsActives from '@/components/settings/SessionsActives';
+
 export default function Settings() {
   const { user, role } = useAuth();
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
@@ -117,12 +122,8 @@ export default function Settings() {
           <Card className="border-slate-100 shadow-sm overflow-hidden">
             <CardHeader className="gradient-primary text-white pb-6">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/40 shadow-lg">
-                  <span className="text-white font-bold text-xl">
-                    {user?.full_name?.charAt(0) || 'U'}
-                  </span>
-                </div>
-                <div>
+                <AvatarUpload user={user} />
+                <div className="flex-1">
                   <CardTitle className="text-lg font-bold">{user?.full_name || 'Utilisateur'}</CardTitle>
                   <CardDescription className="text-white/80 text-xs mt-1">
                     {getRoleLabel(role)}
@@ -156,6 +157,8 @@ export default function Settings() {
                   Actif & Vérifié
                 </p>
               </div>
+
+              <FormulaireProfilEdit user={user} onProfileUpdated={() => window.location.reload()} />
             </CardContent>
           </Card>
         </div>
@@ -207,14 +210,15 @@ export default function Settings() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="fr">Français</SelectItem>
-                        <SelectItem value="wo">Wolof (Bientôt)</SelectItem>
+                        <SelectItem value="wo">Wolof</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
                 <div className="flex justify-end pt-2">
-                  <Button type="submit" disabled={isSavingPref} className="gap-2">
+                  <Button type="submit" disabled={isSavingPref} style={{ backgroundColor: '#1D4ED8' }} className="gap-2 text-white hover:bg-blue-800">
                     <Save className="h-4 w-4" />
                     Enregistrer les préférences
                   </Button>
@@ -257,6 +261,7 @@ export default function Settings() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                     />
+                    <IndicateurForceMotDePasse password={newPassword} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="confirm-pass">Confirmer le nouveau mot de passe</Label>
@@ -267,11 +272,19 @@ export default function Settings() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                     />
+                    {confirmPassword && newPassword !== confirmPassword && (
+                      <p className="text-xs text-[#EF4444] mt-1">Les mots de passe ne correspondent pas.</p>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex justify-end pt-2">
-                  <Button type="submit" variant="destructive" disabled={isSavingPass} className="gap-2">
+                  <Button 
+                    type="submit" 
+                    disabled={isSavingPass || (newPassword !== confirmPassword) || newPassword.length < 8} 
+                    style={{ backgroundColor: '#1D4ED8' }} 
+                    className="gap-2 text-white hover:bg-blue-800"
+                  >
                     {isSavingPass && <Loader2 className="h-4 w-4 animate-spin" />}
                     Modifier le mot de passe
                   </Button>
@@ -279,6 +292,9 @@ export default function Settings() {
               </form>
             </CardContent>
           </Card>
+
+          {/* Sessions Actives */}
+          <SessionsActives />
         </div>
       </div>
     </div>
