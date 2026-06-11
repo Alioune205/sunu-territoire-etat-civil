@@ -60,8 +60,8 @@ class MockInterceptor extends Interceptor {
     }
     if (path == '/auth/me') return MockService.getMe();
 
-    // ── Certificats ───────────────────────────────────────
-    if (path == '/certificates/submit') {
+    // ── Certificats / Dossiers ────────────────────────────
+    if (path == '/dossiers/' && method == 'POST') {
       return MockService.submitCertificate(data);
     }
 

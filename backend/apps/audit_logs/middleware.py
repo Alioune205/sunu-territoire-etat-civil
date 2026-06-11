@@ -15,11 +15,15 @@ class AuditLogMiddleware(MiddlewareMixin):
     """
 
     def process_response(self, request, response):
-        # On ne logue que les requêtes modifiantes qui ont réussi
-        if (
-            request.method in ['POST', 'PUT', 'PATCH', 'DELETE']
-            and 200 <= response.status_code < 300
-        ):
+        # On logue toutes les requêtes modifiantes (succès ou échec)
+        if request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
+            # Déterminer le statut
+            if 200 <= response.status_code < 400:
+                log_status = AuditLog.Status.SUCCESS
+            elif 400 <= response.status_code < 500:
+                log_status = AuditLog.Status.FAILURE
+            else:
+                log_status = AuditLog.Status.ERROR
             # Essayer de récupérer l'utilisateur via JWT
             user = None
             if (
@@ -73,10 +77,14 @@ class AuditLogMiddleware(MiddlewareMixin):
             else:
                 ip_address = request.META.get('REMOTE_ADDR')
 
+            user_type = AuditLog.UserType.USER if user else AuditLog.UserType.ANONYMOUS
+
             try:
                 AuditLog.log(
                     user=user,
+                    user_type=user_type,
                     action=action,
+                    status=log_status,
                     resource_type=resource_type,
                     details={
                         'path': request.path,

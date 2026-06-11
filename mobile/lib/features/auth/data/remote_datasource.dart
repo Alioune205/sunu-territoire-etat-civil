@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/errors/exceptions.dart';
 import 'models/auth_response_model.dart';
@@ -62,8 +63,18 @@ class AuthRemoteDatasource {
       'identifier': identifier,
       'code': code,
     });
+    debugPrint('[AuthRemoteDatasource] verifyOtp response status=${res.statusCode} data=${res.data}');
     if (res.statusCode == 200 && res.data != null) {
-      return (res.data as Map<String, dynamic>)['token'] as String? ?? '';
+      final json = res.data as Map<String, dynamic>;
+      String extractedToken = '';
+      if (json.containsKey('data') && json['data'] is Map<String, dynamic>) {
+        final data = json['data'] as Map<String, dynamic>;
+        extractedToken = data['access'] as String? ?? data['token'] as String? ?? '';
+      } else {
+        extractedToken = json['token'] as String? ?? '';
+      }
+      debugPrint('[AuthRemoteDatasource] verifyOtp extracted token=$extractedToken');
+      return extractedToken;
     }
     throw const InvalidOtpException();
   }

@@ -72,9 +72,9 @@ export default function Agents() {
     setLoading(true);
     try {
       const params = {};
-      if (filterRole) params.role = filterRole;
-      if (filterCommune) params.commune = filterCommune;
-      if (filterStatus) params.is_active = filterStatus;
+      if (filterRole && filterRole !== 'all') params.role = filterRole;
+      if (filterCommune && filterCommune !== 'all') params.commune = filterCommune;
+      if (filterStatus && filterStatus !== 'all') params.is_active = filterStatus;
       
       const data = await getUserList(params);
       setUsers(Array.isArray(data) ? data : data.results || []);

@@ -13,10 +13,10 @@ class AssistantRemoteDatasource {
     final res = await client.post('/ai/ndiogoye/chat/', data: {
       'message': message,
       'language': language,
-      'history': history ?? [],
+      'chat_history': history ?? [],
     });
     if ((res.statusCode == 200) && res.data != null) {
-      return (res.data as Map<String, dynamic>)['response'] as String;
+      return (res.data as Map<String, dynamic>)['reply'] as String;
     }
     throw const ApiException(message: 'Réponse invalide du serveur');
   }

@@ -130,6 +130,37 @@ export default function Dossiers() {
     updateParams({ status: '', type: '', commune: '', search: '', page: 1 });
   };
 
+  // --- NOUVEAU : Connexion Temps Réel (WebSockets) ---
+  useEffect(() => {
+    // Construction de l'URL WebSocket à partir de l'URL de l'API
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+    const wsUrl = baseUrl.replace('http', 'ws').replace('/api', '/ws/dashboard/');
+      
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => console.log('🔗 Connecté au serveur Temps Réel (Dossiers)');
+
+    ws.onmessage = (event) => {
+      const parsed = JSON.parse(event.data);
+      if (parsed.message === 'new_dossier') {
+        // Notification toast visuelle
+        toast({
+          title: 'Nouveau Dossier ! 📄',
+          description: `Un nouveau certificat (${parsed.data.reference}) vient d'être soumis.`,
+          variant: 'default',
+          className: 'bg-blue-50 border-blue-200 text-blue-900',
+        });
+        // Rafraîchir les données silencieusement
+        refresh();
+      }
+    };
+
+    ws.onclose = () => console.log('❌ Déconnecté du serveur Temps Réel');
+
+    // Nettoyage à la fermeture de la page
+    return () => ws.close();
+  }, [refresh]);
+
   // Actions sur un dossier
   const handleApprove = async (dossier) => {
     setActionLoading(true);

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_constants.dart';
 import '../errors/exceptions.dart';
 
@@ -23,9 +24,26 @@ class NetworkInterceptor extends Interceptor {
     RequestInterceptorHandler handler,
   ) async {
     try {
-      final token = await storage.read(key: AppConstants.keyAuthToken);
-      if (token != null && token.isNotEmpty) {
+      String? token;
+      if (kIsWeb) {
+        final prefs = await SharedPreferences.getInstance();
+        token = prefs.getString(AppConstants.keyAuthToken);
+      } else {
+        token = await storage.read(key: AppConstants.keyAuthToken);
+      }
+      
+      debugPrint('[NetworkInterceptor] onRequest path=${options.path} read token=$token');
+      
+      final isAuthRouteWithoutToken = options.path.contains('/api/auth/login') ||
+          options.path.contains('/api/auth/register') ||
+          options.path.contains('/api/auth/otp/send') ||
+          options.path.contains('/api/auth/otp/verify');
+
+      if (token != null && token.isNotEmpty && !isAuthRouteWithoutToken) {
         options.headers['Authorization'] = 'Bearer $token';
+        debugPrint('[NetworkInterceptor] onRequest set Auth header: Bearer $token');
+      } else {
+        debugPrint('[NetworkInterceptor] onRequest token is null, empty, or route does not need it!');
       }
     } catch (e) {
       debugPrint('[NetworkInterceptor] Erreur lecture token: $e');
@@ -163,6 +181,11 @@ class NetworkInterceptor extends Interceptor {
         key: AppConstants.keyHasBeenLoggedOut,
         value: 'true',
       );
+      if (kIsWeb) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(AppConstants.keyAuthToken);
+        await prefs.setBool(AppConstants.keyHasBeenLoggedOut, true);
+      }
     } catch (e) {
       debugPrint('[NetworkInterceptor] Erreur nettoyage session: $e');
     }

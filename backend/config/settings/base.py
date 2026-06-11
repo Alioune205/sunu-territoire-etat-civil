@@ -38,6 +38,13 @@ ALLOWED_HOSTS = config(
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-app-version',
+    'x-platform',
+    'x-device-id',
+]
+
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
@@ -49,6 +56,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ==============================================================================
 
 DJANGO_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -64,6 +72,7 @@ THIRD_PARTY_APPS = [
     'drf_spectacular',
     'django_filters',
     'corsheaders',
+    'channels',
 ]
 
 LOCAL_APPS = [

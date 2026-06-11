@@ -34,10 +34,12 @@ Suite aux derniers ajustements, voici la répartition mise à jour des tâches p
 > **Rôle :** Responsable uniquement des interfaces administratives Web pour les agents et administrateurs. **Ne gère aucune partie mobile/citoyen.**
 
 **Tâches :**
-1. **Architecture Web React** : Poursuivre le développement avec TailwindCSS et ShadCN.
-2. **Dashboard Super Admin** : Vue globale, gestion des paiements (déjà commencée, à vérifier) et suivi des Audit Logs.
-3. **Dashboard Officier d'État Civil** : Tableau de bord dédié avec Datatables, validation des dossiers et déclenchement de la génération de PDF sécurisé.
-4. **Supervision Ndiogoye** : Interface d'historique des requêtes faites au Chatbot.
+1. ~~**Architecture Web React** : Poursuivre le développement avec TailwindCSS et ShadCN.~~ ✅ **FAIT**
+2. ~~**Dashboard Super Admin** : Vue globale, gestion des paiements et suivi des Audit Logs.~~ ✅ **FAIT**
+3. ~~**Dashboard Officier d'État Civil** : Tableau de bord dédié avec Datatables, validation des dossiers.~~ ✅ **FAIT**
+4. ~~**Supervision Ndiogoye** : Interface d'historique des requêtes faites au Chatbot.~~ ✅ **FAIT**
+
+*(Toutes les tâches de DEV 2A sont officiellement terminées ! 🎉)*
 
 ---
 
@@ -49,13 +51,13 @@ Afin de mieux équilibrer la charge, les tâches initialement prévues pour le B
 > **Rôle :** Sécurité, intégrations externes et gestion du temps réel.
 
 **Tâches :**
-1. **Intégration réelle des fournisseurs SMS/Email** : Remplacer les logs mockés par de vraies API (Twilio, SendGrid, etc.).
-2. **WebSockets (Django Channels)** : Mise à jour en direct des Dashboards et de l'App Flutter sans polling.
+1. **Intégration réelle des fournisseurs SMS** : Remplacer les logs mockés par de vraies API (Twilio, Orange, etc.) pour les SMS. (Les emails sont déjà gérés).
+2. ~~**WebSockets (Django Channels)** : Mise à jour en direct des Dashboards et de l'App Flutter sans polling.~~ ✅ **FAIT**
 
 ### 🔔 DEV 1C — Maïmouna Sall · Backend (Optimisations & Notifications)
 > **Rôle :** En plus des notifications, du dashboard de stats et de l'export CSV, tu récupères une partie de l'optimisation.
 
 **Tâches récupérées de DEV 2B :**
-1. **Mise en cache Redis (Throttling avancé)** : Configurer Redis pour soulager la base de données et rendre l'API ultra-rapide.
+1. ~~**Mise en cache Redis (Throttling avancé)** : Configurer Redis pour soulager la base de données et rendre l'API ultra-rapide.~~ ✅ **FAIT**
 2. **Configuration Sécurisée en Production** : Scripts Nginx/Gunicorn, et sécurisation des headers HTTP.
 *(En plus des tâches d'origine : Notifications asynchrones, Export CSV, et Stats pour le Dashboard de DEV 2A).*

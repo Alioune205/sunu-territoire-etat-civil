@@ -31,15 +31,15 @@ class DecesNotifier extends StateNotifier<DecesState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final id = await _ds.submitCertificate({
-        'type': 'deces',
-        'commune_id': communeId,
-        'beneficiary': {
-          'nom': nomDefunt,
+        'type': 'death_certificate',
+        'commune': communeId,
+        'is_for_third_party': true,
+        'third_party_relation': lienParente,
+        'metadata': {
+          'nom_defunt': nomDefunt,
           'registre': registre,
           'date_deces': dateDeces.toIso8601String().split('T').first,
-        },
-        'declarant': {
-          'nom': nomDeclarant,
+          'nom_declarant': nomDeclarant,
           'lien_parente': lienParente,
         },
       });

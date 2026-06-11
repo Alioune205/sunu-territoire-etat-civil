@@ -16,9 +16,47 @@ class InitiatePaymentView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
+        from django.utils.crypto import get_random_string
+        
+        # Récupérer les données envoyées par le mobile
+        dossier_id = request.data.get('dossier_id')
+        method = request.data.get('method', 'wave')
+        phone = request.data.get('phone', 'N/A')
+        
+        # Simuler la création d'une vraie transaction en base de données
+        tx = PaymentTransaction.objects.create(
+            reference=f"TX_{get_random_string(8).upper()}",
+            amount=500.00,
+            currency='XOF',
+            payment_type=method,
+            status='success', # On force le succès pour la simulation
+            payer_name=request.user.full_name if hasattr(request.user, 'full_name') else "Citoyen",
+            payer_id=phone,
+            service_label=f"Frais de traitement - Dossier {str(dossier_id)[:8] if dossier_id else 'Inconnu'}",
+        )
+        
+        # --- NOUVEAU : Envoi du signal Temps Réel (WebSockets) ---
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            from .serializers import PaymentTransactionSerializer
+            
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                'admin_dashboard',
+                {
+                    'type': 'dashboard_update',
+                    'message': 'new_transaction',
+                    'data': PaymentTransactionSerializer(tx).data
+                }
+            )
+        except Exception as e:
+            print(f"Erreur WebSocket: {e}")
+        
+        # Réponse attendue par le mobile
         return success_response(
-            message="Paiement initié avec succès.",
-            data={"status": "pending", "transaction_id": "TX_MOCK_123"}
+            message="Paiement simulé avec succès.",
+            data={"status": "success", "transaction_id": str(tx.reference)}
         )
 
 class AdminTransactionListView(ListAPIView):

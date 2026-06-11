@@ -4,6 +4,7 @@ import '../domain/models/user_model.dart';
 import '../domain/repository.dart';
 import 'local_datasource.dart';
 import 'remote_datasource.dart';
+import 'package:dio/dio.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDatasource remote;
@@ -25,6 +26,10 @@ class AuthRepositoryImpl implements AuthRepository {
       throw const TooManyAttemptsFailure();
     } on NetworkException {
       throw const NetworkFailure();
+    } on DioException catch (e) {
+      throw ApiFailure(message: e.message ?? 'Erreur inattendue');
+    } on ApiException catch (e) {
+      throw ApiFailure(message: e.message);
     } catch (_) {
       throw const UnexpectedFailure();
     }
@@ -50,6 +55,10 @@ class AuthRepositoryImpl implements AuthRepository {
       throw const PhoneAlreadyExistsFailure();
     } on NetworkException {
       throw const NetworkFailure();
+    } on DioException catch (e) {
+      throw ApiFailure(message: e.message ?? 'Erreur inattendue');
+    } on ApiException catch (e) {
+      throw ApiFailure(message: e.message);
     } catch (_) {
       throw const UnexpectedFailure();
     }
@@ -66,6 +75,10 @@ class AuthRepositoryImpl implements AuthRepository {
       throw const InvalidOtpFailure();
     } on NetworkException {
       throw const NetworkFailure();
+    } on DioException catch (e) {
+      throw ApiFailure(message: e.message ?? 'Erreur inattendue');
+    } on ApiException catch (e) {
+      throw ApiFailure(message: e.message);
     } catch (_) {
       throw const UnexpectedFailure();
     }
@@ -77,6 +90,10 @@ class AuthRepositoryImpl implements AuthRepository {
       await remote.resendOtp(identifier: identifier);
     } on NetworkException {
       throw const NetworkFailure();
+    } on DioException catch (e) {
+      throw ApiFailure(message: e.message ?? 'Erreur inattendue');
+    } on ApiException catch (e) {
+      throw ApiFailure(message: e.message);
     } catch (_) {
       throw const UnexpectedFailure();
     }
@@ -89,6 +106,10 @@ class AuthRepositoryImpl implements AuthRepository {
       return res.toDomain();
     } on UnauthorizedException {
       throw const UnauthorizedFailure();
+    } on DioException catch (e) {
+      throw ApiFailure(message: e.message ?? 'Erreur inattendue');
+    } on ApiException catch (e) {
+      throw ApiFailure(message: e.message);
     } catch (_) {
       throw const UnexpectedFailure();
     }

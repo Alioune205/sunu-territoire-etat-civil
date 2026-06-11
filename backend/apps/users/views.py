@@ -51,6 +51,8 @@ class UserViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated()]
         if self.action == 'destroy':
             return [IsAuthenticated(), IsSuperAdmin()]
+        if self.action == 'me':
+            return [IsAuthenticated()]
         return [IsAuthenticated(), IsAdminStaff()]
 
     def retrieve(self, request, *args, **kwargs):

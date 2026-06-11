@@ -75,7 +75,7 @@ class MockService {
     final type = payload['type'] as String? ?? 'naissance';
     final id =
         'DOS-${type.toUpperCase()}-${DateTime.now().millisecondsSinceEpoch}';
-    return {'dossier_id': id, 'status': 'soumis'};
+    return {'id': id, 'status': 'soumis'};
   }
 
   static Future<List<Map<String, dynamic>>> getDossiers() async {

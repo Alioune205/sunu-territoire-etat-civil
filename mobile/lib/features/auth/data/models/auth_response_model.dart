@@ -11,12 +11,22 @@ class LoginResponseModel {
     required this.needsOtp,
   });
 
-  factory LoginResponseModel.fromJson(Map<String, dynamic> json) =>
-      LoginResponseModel(
-        token: json['token'] as String? ?? '',
-        userId: json['user_id'] as String? ?? '',
-        needsOtp: json['needs_otp'] as bool? ?? false,
+  factory LoginResponseModel.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('data') && json['data'] is Map<String, dynamic>) {
+      final data = json['data'] as Map<String, dynamic>;
+      final user = data['user'] as Map<String, dynamic>?;
+      return LoginResponseModel(
+        token: data['access'] as String? ?? data['token'] as String? ?? '',
+        userId: user != null ? user['id'] as String? ?? '' : data['user_id'] as String? ?? '',
+        needsOtp: data['needs_otp'] as bool? ?? false,
       );
+    }
+    return LoginResponseModel(
+      token: json['token'] as String? ?? '',
+      userId: json['user_id'] as String? ?? '',
+      needsOtp: json['needs_otp'] as bool? ?? false,
+    );
+  }
 }
 
 class UserResponseModel {
@@ -44,19 +54,27 @@ class UserResponseModel {
     this.dateNaissance,
   });
 
-  factory UserResponseModel.fromJson(Map<String, dynamic> json) =>
-      UserResponseModel(
-        id: json['id'] as String? ?? '',
-        prenom: json['prenom'] as String? ?? '',
-        nom: json['nom'] as String? ?? '',
-        phone: json['phone'] as String?,
-        email: json['email'] as String?,
-        isVerified: json['is_verified'] as bool? ?? false,
-        communeId: json['commune_id'] as String?,
-        communeNom: json['commune_nom'] as String?,
-        registre: json['registre'] as String?,
-        dateNaissance: json['date_naissance'] as String?,
-      );
+  factory UserResponseModel.fromJson(Map<String, dynamic> json) {
+    final Map<String, dynamic> source = (json.containsKey('data') && json['data'] is Map<String, dynamic>)
+        ? json['data'] as Map<String, dynamic>
+        : json;
+    
+    final prenom = source['prenom'] as String? ?? source['first_name'] as String? ?? '';
+    final nom = source['nom'] as String? ?? source['last_name'] as String? ?? '';
+
+    return UserResponseModel(
+      id: source['id'] as String? ?? '',
+      prenom: prenom,
+      nom: nom,
+      phone: source['phone'] as String?,
+      email: source['email'] as String?,
+      isVerified: source['is_verified'] as bool? ?? false,
+      communeId: source['commune_id'] as String?,
+      communeNom: source['commune_nom'] as String?,
+      registre: source['registre'] as String?,
+      dateNaissance: source['date_naissance'] as String?,
+    );
+  }
 
   UserModel toDomain() => UserModel(
         id: id,

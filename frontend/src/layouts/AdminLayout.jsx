@@ -19,17 +19,13 @@ import {
   Moon,
   CreditCard,
   ShieldAlert,
+  Activity,
+  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import logo from '@/assets/logo.jpg';
 
-// Mock notifications pour le badge (attend DEV 1C — Maïmouna Sall)
-// TODO: brancher API réelle GET /api/notifications/
-const MOCK_NOTIFICATIONS = [
-  { id: 1, title: "Nouveau dossier soumis", body: "TC-2026-089 — Acte de naissance", is_read: false, created_at: new Date().toISOString(), related_dossier_id: 89 },
-  { id: 2, title: "Dossier approuvé", body: "TC-2026-045 approuvé par l'officier", is_read: true, created_at: new Date(Date.now() - 3600000).toISOString(), related_dossier_id: 45 },
-  { id: 3, title: "Dossier rejeté", body: "TC-2026-031 — Documents insuffisants", is_read: false, created_at: new Date(Date.now() - 7200000).toISOString(), related_dossier_id: 31 },
-];
+import { getNotifications } from '@/api/notifications';
 
 const navigation = [
   { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
@@ -52,24 +48,43 @@ export function AdminLayout() {
   const baseNavigation = [
     { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Dossiers', href: '/dossiers', icon: FolderOpen },
-    { name: 'Communes', href: '/communes', icon: Building2 },
-    { name: 'Agents', href: '/agents', icon: Users },
-    { name: 'Journal d\'audit', href: '/audit-logs', icon: ScrollText },
   ];
 
   const filteredNavigation = [...baseNavigation];
-  if (role === 'super_admin') {
-    filteredNavigation.push({ name: 'Transactions', href: '/admin/transactions', icon: CreditCard });
+  
+  if (role === 'civil_admin' || role === 'super_admin') {
+    filteredNavigation.push({ name: 'Agents', href: '/agents', icon: Users });
   }
+  
+  if (role === 'super_admin') {
+    filteredNavigation.push(
+      { name: 'Communes', href: '/communes', icon: Building2 },
+      { name: 'Journal d\'audit', href: '/audit-logs', icon: ScrollText },
+      { name: 'Transactions', href: '/admin/transactions', icon: CreditCard }
+    );
+  }
+  
   filteredNavigation.push(
     { name: 'Notifications', href: '/notifications', icon: Bell },
     { name: 'Paramètres', href: '/settings', icon: Settings }
   );
 
   useEffect(() => {
-    // TODO: brancher API réelle
-    const count = MOCK_NOTIFICATIONS.filter((n) => !n.is_read).length;
-    setUnreadCount(count);
+    const fetchNotifs = async () => {
+      try {
+        const data = await getNotifications();
+        const results = data.results || data;
+        const count = results.filter((n) => !n.is_read).length;
+        setUnreadCount(count);
+      } catch (err) {
+        console.error("Erreur chargement notifications (AdminLayout):", err);
+      }
+    };
+    
+    fetchNotifs();
+    // Rafraîchissement automatique toutes les 2 minutes pour la cloche
+    const interval = setInterval(fetchNotifs, 120000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = async () => {
@@ -210,20 +225,24 @@ export function AdminLayout() {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <Link
-              to="/admin/audit-logs"
-              className="hidden lg:flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 transition-all hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
-            >
-              <Activity className="h-4 w-4" />
-              Audit Logs
-            </Link>
-            <Link
-              to="/admin/ai-logs"
-              className="hidden lg:flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 transition-all hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
-            >
-              <Bot className="h-4 w-4" />
-              Supervision IA
-            </Link>
+            {role === 'super_admin' && (
+              <>
+                <NavLink
+                  to="/admin/audit-logs"
+                  className="hidden lg:flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 transition-all hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
+                >
+                  <Activity className="h-4 w-4" />
+                  Audit Logs
+                </NavLink>
+                <NavLink
+                  to="/admin/ai-logs"
+                  className="hidden lg:flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 transition-all hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
+                >
+                  <Bot className="h-4 w-4" />
+                  Supervision IA
+                </NavLink>
+              </>
+            )}
             <div>
               <h2 className="text-lg font-semibold text-text-100">
                 {getCurrentPageTitle()}
@@ -301,11 +320,16 @@ export function AdminLayout() {
         {/* Page content */}
         <main className="flex-1 p-6 overflow-y-auto animate-enter">
           {role === 'super_admin' && (
-            <div className="mb-6 flex items-center gap-3 p-4 bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-xl text-[#D97706] text-sm font-semibold shadow-sm animate-enter">
-              <ShieldAlert className="h-5 w-5 flex-shrink-0" />
-              <span>
-                Mode lecture seule — Toute modification des transactions est désactivée conformément aux règles de la Trésorerie Publique.
-              </span>
+            <div className="mb-6 flex items-center justify-between p-3 bg-[#FFFBEB] dark:bg-[#F59E0B]/5 border-l-4 border-l-[#F59E0B] border-y border-r border-[#F59E0B]/20 rounded-r-lg shadow-sm animate-enter">
+              <div className="flex items-center gap-3">
+                <ShieldAlert className="h-[18px] w-[18px] text-[#F59E0B] flex-shrink-0" />
+                <span className="text-[#B45309] dark:text-[#D97706] text-sm font-medium">
+                  Mode lecture seule — Règles de la Trésorerie Publique
+                </span>
+              </div>
+              <a href="#" className="text-xs text-[#D97706] hover:text-[#B45309] underline underline-offset-2 transition-colors">
+                En savoir plus
+              </a>
             </div>
           )}
           <Outlet />

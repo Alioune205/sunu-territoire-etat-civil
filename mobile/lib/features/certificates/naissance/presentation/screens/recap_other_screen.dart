@@ -31,6 +31,7 @@ class RecapOtherScreen extends ConsumerWidget {
     final extrait = formData['extrait_naissance'] as String?;
 
     Future<void> submit() async {
+      final sm = ScaffoldMessenger.of(context);
       try {
         final id = await ref.read(naissanceProvider.notifier).submit(
               communeId: formData['commune_id'] as String,
@@ -47,8 +48,7 @@ class RecapOtherScreen extends ConsumerWidget {
           'label': 'Certificat de naissance',
         });
       } catch (e) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
+        sm.showSnackBar(
           SnackBar(
               content: Text(e.toString()),
               backgroundColor: AppColors.error),
