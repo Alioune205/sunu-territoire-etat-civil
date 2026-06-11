@@ -159,14 +159,47 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
         )
 
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+
 @receiver(post_save, sender=Dossier)
 def invalidate_dashboard_cache_on_dossier_change(sender, instance, **kwargs):
     """
     Invalide automatiquement le cache du dashboard à chaque modification de dossier.
     Garantit que les statistiques sont toujours à jour sans délai incohérent.
+    Envoie également un signal WebSocket au Dashboard pour un rafraîchissement en temps réel.
     """
     try:
         from apps.dashboard.services import invalidate_dashboard_cache
         invalidate_dashboard_cache()
+        
+        # Broadcast WebSocket Temps Réel au Dashboard (DEV 2A)
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            'dashboard_updates',
+            {
+                'type': 'dashboard_update',
+                'update_type': 'dossier_status_changed',
+                'message': {
+                    'dossier_id': str(instance.id),
+                    'new_status': instance.status,
+                    'reference': instance.reference
+                }
+            }
+        )
+        
+        # Broadcast WebSocket Temps Réel au citoyen (DEV 3/4 Flutter)
+        async_to_sync(channel_layer.group_send)(
+            f'user_{instance.citizen.id}',
+            {
+                'type': 'notification_push',
+                'notification': {
+                    'title': "Mise à jour de dossier",
+                    'body': f"Le statut de votre dossier {instance.reference} a changé.",
+                    'dossier_id': str(instance.id),
+                    'status': instance.status
+                }
+            }
+        )
     except Exception as e:
-        logger.warning(f'[Signals] Erreur lors de l\'invalidation du cache dashboard : {e}')
+        logger.warning(f'[Signals] Erreur lors du broadcast WebSocket ou invalidation cache : {e}')
