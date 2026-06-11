@@ -92,6 +92,7 @@ LOCAL_APPS = [
     'apps.integrations',
     'apps.services',
     'apps.payments',
+    'apps.etat_civil',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -113,6 +114,28 @@ MIDDLEWARE = [
     'apps.payments.middleware.ReadOnlyForSuperAdminMiddleware',
     'apps.system.middleware.PerformanceMonitoringMiddleware',
 ]
+
+# ==============================================================================
+# CELERY CONFIGURATION
+# ==============================================================================
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/1')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/1')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+# Configuration Celery Beat (Tâches périodiques)
+CELERY_BEAT_SCHEDULE = {
+    'verifier-sla-chaque-15-min': {
+        'task': 'apps.etat_civil.tasks_attribution.task_verifier_sla_et_escalader',
+        'schedule': 900.0,  # 15 minutes
+    },
+    'recalculer-scores-nuit': {
+        'task': 'apps.etat_civil.tasks_attribution.task_recalculer_scores_agents',
+        'schedule': 86400.0,  # Chaque jour
+    },
+}
 
 # ==============================================================================
 # URL CONFIGURATION
