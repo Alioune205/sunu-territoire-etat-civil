@@ -70,7 +70,7 @@ export function KPICard({
 
   return (
     <div 
-      className={`kpi-card flex flex-col justify-between min-h-[120px] ${onClick ? 'cursor-pointer hover:border-blue-300 dark:hover:border-blue-700' : ''} ${statusClass}`}
+      className={`kpi-card flex flex-col justify-between min-h-[100px] ${onClick ? 'cursor-pointer hover:border-blue-300 dark:hover:border-blue-700' : ''} ${statusClass}`}
       onClick={onClick}
     >
       {/* Header */}

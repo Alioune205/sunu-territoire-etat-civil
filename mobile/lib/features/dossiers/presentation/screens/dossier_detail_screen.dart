@@ -138,11 +138,11 @@ class _DossierDetailScreenState extends ConsumerState<DossierDetailScreen> {
                 const SizedBox(height: 16),
 
                 // ── Délai estimé si en cours ─────────────────
-                if (d.status != 'pret' && d.status != 'rejete')
+                if (!['pret', 'delivered', 'completed', 'rejete', 'rejected'].contains(d.status))
                   _DelayCard(type: d.type),
 
                 // ── Bouton télécharger si prêt ───────────────
-                if (d.status == 'pret') ...[
+                if (['pret', 'delivered', 'completed'].contains(d.status)) ...[
                   const SizedBox(height: 16),
                   PrimaryButton(
                     label: 'Télécharger le certificat',
@@ -154,7 +154,7 @@ class _DossierDetailScreenState extends ConsumerState<DossierDetailScreen> {
                 ],
 
                 // ── Message rejet ────────────────────────────
-                if (d.status == 'rejete')
+                if (['rejete', 'rejected'].contains(d.status))
                   Container(
                     margin: const EdgeInsets.only(top: 16),
                     padding: const EdgeInsets.all(14),
@@ -228,11 +228,18 @@ class _DossierDetailScreenState extends ConsumerState<DossierDetailScreen> {
   Color _statusColor(String status) {
     switch (status) {
       case 'pret':
+      case 'delivered':
+      case 'completed':
       case 'valide':
+      case 'validated':
+      case 'generated':
+      case 'approved':
         return AppColors.statusGreen;
       case 'rejete':
+      case 'rejected':
         return AppColors.statusRed;
       case 'en_verification':
+      case 'in_review':
         return AppColors.statusAmber;
       default:
         return AppColors.statusBlue;

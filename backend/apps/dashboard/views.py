@@ -37,6 +37,16 @@ def format_duration(duration):
     return f'{seconds}s'
 
 
+def get_base_queryset(user):
+    qs = Dossier.objects.all()
+    if user.role in ['super_admin', 'civil_admin']:
+        return qs
+    elif user.role in ['reception_agent', 'verification_agent', 'approval_agent', 'agent']:
+        return qs.filter(assigned_agent=user)
+    elif getattr(user, 'is_admin_staff', False) and getattr(user, 'commune', None):
+        return qs.filter(commune=user.commune)
+    return qs.none()
+
 class DashboardStatsView(APIView):
     """API view for dashboard statistics."""
 
@@ -48,12 +58,12 @@ class DashboardStatsView(APIView):
     )
     def get(self, request):
         """Return global KPIs for the admin dashboard."""
-        total_dossiers = Dossier.objects.count()
+        total_dossiers = get_base_queryset(request.user).count()
         total_documents = Document.objects.count()
 
         status_counts = {
             item['status']: item['count']
-            for item in Dossier.objects.values(
+            for item in get_base_queryset(request.user).values(
                 'status'
             ).annotate(count=Count('id'))
         }
@@ -63,7 +73,7 @@ class DashboardStatsView(APIView):
                 'commune': item['commune__name'] or 'Inconnue',
                 'count': item['count'],
             }
-            for item in Dossier.objects.values(
+            for item in get_base_queryset(request.user).values(
                 'commune__name'
             ).annotate(
                 count=Count('id')
@@ -79,7 +89,7 @@ class DashboardStatsView(APIView):
 
         from datetime import timedelta
         
-        avg_review_query = Dossier.objects.exclude(
+        avg_review_query = get_base_queryset(request.user).exclude(
             submitted_at__isnull=True
         ).exclude(
             reviewed_at__isnull=True
@@ -92,7 +102,7 @@ class DashboardStatsView(APIView):
             )
         )
 
-        avg_completion_query = Dossier.objects.exclude(
+        avg_completion_query = get_base_queryset(request.user).exclude(
             submitted_at__isnull=True
         ).exclude(
             completed_at__isnull=True
@@ -113,19 +123,19 @@ class DashboardStatsView(APIView):
 
         # --- NOUVELLES STATISTIQUES ---
         total = total_dossiers
-        dossiers_approuves = Dossier.objects.filter(status__in=[Dossier.Status.VALIDATED, Dossier.Status.DELIVERED]).count()
+        dossiers_approuves = get_base_queryset(request.user).filter(status__in=[Dossier.Status.VALIDATED, Dossier.Status.DELIVERED]).count()
         taux_approbation = round((dossiers_approuves / total) * 100, 1) if total > 0 else 0.0
 
-        dossiers_par_type_qs = Dossier.objects.values('type').annotate(count=Count('id'))
+        dossiers_par_type_qs = get_base_queryset(request.user).values('type').annotate(count=Count('id'))
         dossiers_par_type = {item['type']: item['count'] for item in dossiers_par_type_qs}
 
-        dossiers_par_commune_qs = Dossier.objects.values('commune__name').annotate(count=Count('id')).order_by('-count')[:5]
+        dossiers_par_commune_qs = get_base_queryset(request.user).values('commune__name').annotate(count=Count('id')).order_by('-count')[:5]
         dossiers_par_commune = [
             {'commune': item['commune__name'] or 'Inconnue', 'count': item['count']}
             for item in dossiers_par_commune_qs
         ]
 
-        agents_actifs_qs = Dossier.objects.filter(assigned_agent__isnull=False).values('assigned_agent__first_name', 'assigned_agent__last_name').annotate(dossiers_traites=Count('id')).order_by('-dossiers_traites')[:3]
+        agents_actifs_qs = get_base_queryset(request.user).filter(assigned_agent__isnull=False).values('assigned_agent__first_name', 'assigned_agent__last_name').annotate(dossiers_traites=Count('id')).order_by('-dossiers_traites')[:3]
         agents_les_plus_actifs = [
             {'agent': f"{item['assigned_agent__first_name']} {item['assigned_agent__last_name']}".strip() or "Agent inconnu", 'dossiers_traites': item['dossiers_traites']}
             for item in agents_actifs_qs
@@ -161,7 +171,7 @@ class GlobalStatsView(APIView):
         summary='Statistiques globales'
     )
     def get(self, request):
-        stats = Dossier.objects.aggregate(
+        stats = get_base_queryset(request.user).aggregate(
             total=Count('id'),
             en_cours=Count(
                 'id',
@@ -207,7 +217,7 @@ class PerformanceStatsView(APIView):
             F('completed_at') - F('submitted_at'),
             output_field=FloatField()
         )
-        avg_time_query = Dossier.objects.filter(
+        avg_time_query = get_base_queryset(request.user).filter(
             status__in=[
                 Dossier.Status.VALIDATED,
             ],
@@ -215,13 +225,13 @@ class PerformanceStatsView(APIView):
             completed_at__isnull=False
         ).aggregate(temps_moyen=Avg(time_diff))
 
-        perf_communes = Dossier.objects.values(
+        perf_communes = get_base_queryset(request.user).values(
             'commune__name'
         ).annotate(
             total=Count('id')
         ).order_by('-total')[:10]
 
-        perf_agents = Dossier.objects.filter(
+        perf_agents = get_base_queryset(request.user).filter(
             assigned_agent__isnull=False
         ).values(
             'assigned_agent__email'
@@ -247,19 +257,19 @@ class ActivityStatsView(APIView):
         summary="Statistiques d'activité"
     )
     def get(self, request):
-        daily = Dossier.objects.annotate(
+        daily = get_base_queryset(request.user).annotate(
             date=TruncDay('created_at')
         ).values('date').annotate(
             count=Count('id')
         ).order_by('-date')[:7]
 
-        weekly = Dossier.objects.annotate(
+        weekly = get_base_queryset(request.user).annotate(
             date=TruncWeek('created_at')
         ).values('date').annotate(
             count=Count('id')
         ).order_by('-date')[:4]
 
-        monthly = Dossier.objects.annotate(
+        monthly = get_base_queryset(request.user).annotate(
             date=TruncMonth('created_at')
         ).values('date').annotate(
             count=Count('id')
@@ -291,7 +301,7 @@ class ExportDossiersCSVView(APIView):
         date_debut_str = request.query_params.get('date_debut')
         date_fin_str = request.query_params.get('date_fin')
 
-        queryset = Dossier.objects.select_related('citizen', 'commune').all().order_by('-created_at')
+        queryset = get_base_queryset(request.user).select_related('citizen', 'commune').all().order_by('-created_at')
         
         if date_debut_str:
             try:

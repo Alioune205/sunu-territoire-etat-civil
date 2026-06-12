@@ -36,11 +36,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if getattr(user, 'role', None) in [
-            'civil_admin', 'super_admin',
-            'verification_agent', 'reception_agent'
-        ]:
-            return self.queryset
         return self.queryset.filter(user=user)
 
     def perform_create(self, serializer):

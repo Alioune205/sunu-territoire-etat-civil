@@ -41,7 +41,7 @@ class ServiceAttribution:
         )
 
         # 5. Mettre à jour le statut du dossier
-        dossier.status = 'en_cours'
+        dossier.status = 'in_review'
         dossier.save(update_fields=['status'])
 
         # 6. Écrire dans le journal
@@ -88,7 +88,36 @@ class ServiceAttribution:
             self._notifier_websocket(nouvel_agent_user.id, ancienne_attribution.id)
             return ancienne_attribution, "Réattribution réussie."
         except AttributionDossier.DoesNotExist:
-            return None, "Aucune attribution existante pour ce dossier."
+            # Créer l'attribution initiale si elle n'existe pas
+            delai_heures = self.moteur_priorite.DELAIS_REGLEMENTAIRES_HEURES.get(getattr(dossier, 'type', ''), 72)
+            date_limite = timezone.now() + datetime.timedelta(hours=delai_heures)
+
+            attribution = AttributionDossier.objects.create(
+                dossier=dossier,
+                agent_actuel=nouvel_agent_user,
+                score_attribution=100.0,
+                niveau_priorite='moyenne',
+                justification_ia=justification_manuelle or "Attribution manuelle directe",
+                date_limite_traitement=date_limite,
+                source_attribution=source,
+                responsable_attribution=responsable
+            )
+
+            dossier.assigned_agent = nouvel_agent_user
+            dossier.status = 'in_review'
+            dossier.save(update_fields=['assigned_agent', 'status', 'updated_at'])
+
+            JournalAttribution.objects.create(
+                libelle_action=f"Attribution Initiale ({source})",
+                dossier_id=str(dossier.id),
+                agent_apres=nouvel_agent_user.email,
+                justification=attribution.justification_ia,
+                responsable=responsable,
+                metadata={"source": source}
+            )
+
+            self._notifier_websocket(nouvel_agent_user.id, attribution.id)
+            return attribution, "Attribution initiale réussie."
 
     def suspendre_attribution_auto(self, commune_id, duree_heures=24):
         cache_key = f"suspend_attribution_commune_{commune_id}"

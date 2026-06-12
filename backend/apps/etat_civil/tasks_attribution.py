@@ -18,7 +18,7 @@ def verifier_dossiers_en_retard():
     channel_layer = get_channel_layer()
 
     attributions_actives = AttributionDossier.objects.filter(
-        dossier__status='en_cours'
+        dossier__status='in_review'
     )
 
     for attribution in attributions_actives:

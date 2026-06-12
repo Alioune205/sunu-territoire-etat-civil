@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useDossiers } from '@/hooks/useDossiers';
-import { getDossiers, patchDossier, assignDossier, approveDossier, rejectDossier } from '@/api/dossiers';
+import { getDossiers, patchDossier, assignDossier, approveDossier, rejectDossier, downloadPdf } from '@/api/dossiers';
 import { getCommuneList } from '@/api/communes';
 import { getUserList } from '@/api/users';
 import { attributionApi } from '@/services/attributionApi';
@@ -80,7 +80,7 @@ const AutoAssignButton = ({ dossier, onAssign }) => {
     setLoading(true);
     try {
       const recs = await attributionApi.getRecommandation(dossier.id);
-      const topAgentId = recs?.recommandations?.[0]?.agent_id;
+      const topAgentId = Array.isArray(recs) ? recs[0]?.agent_id : recs?.recommandations?.[0]?.agent_id;
       if (!topAgentId) throw new Error("Aucune recommandation disponible");
       
       await attributionApi.reattribuerDossier(
@@ -91,8 +91,9 @@ const AutoAssignButton = ({ dossier, onAssign }) => {
       toast({ title: 'Succès', description: 'Agent assigné avec succès.', variant: 'success' });
       onAssign();
     } catch (error) {
-      console.error(error);
-      toast({ title: 'Erreur', description: 'Impossible d\'assigner automatiquement.', variant: 'destructive' });
+      console.error("AutoAssign Error:", error);
+      const errorMsg = error?.response?.data?.error || error?.message || "Erreur inconnue";
+      toast({ title: 'Erreur', description: `Impossible d'assigner: ${errorMsg}`, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -232,6 +233,30 @@ export default function Dossiers() {
     }
   };
 
+  const handleDownloadPdf = async (dossier) => {
+    try {
+      const blob = await downloadPdf(dossier.id);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Certificat_${dossier.reference}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      toast({
+        title: 'PDF téléchargé',
+        description: `Le certificat ${dossier.reference} a été téléchargé avec succès.`,
+        variant: 'success',
+      });
+    } catch (err) {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de télécharger le PDF.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleReject = async () => {
     if (!rejectionReason || rejectionReason.length < 20 || !selectedDossier) return;
     setActionLoading(true);
@@ -367,10 +392,13 @@ export default function Dossiers() {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem disabled title="PDF disponible après livraison DEV 1B">
-                  <FileDown className="h-4 w-4 mr-2" /> PDF (bientôt)
+                <DropdownMenuItem 
+                  onClick={() => handleDownloadPdf(dossier)}
+                  disabled={!['validated', 'delivered', 'generated'].includes(dossier.status)}
+                  title={!['validated', 'delivered', 'generated'].includes(dossier.status) ? "Le PDF n'est pas encore généré" : "Télécharger le PDF"}
+                >
+                  <FileDown className="h-4 w-4 mr-2" /> PDF
                 </DropdownMenuItem>
-                {/* TODO: brancher POST /api/dossiers/{id}/generer-pdf/ (DEV 1B) */}
               </DropdownMenuContent>
             </DropdownMenu>
           );

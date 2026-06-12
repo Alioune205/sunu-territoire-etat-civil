@@ -5,6 +5,8 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
 from apps.communes.models import Commune
+from apps.users.serializers import UserListSerializer
+from apps.communes.serializers import CommuneSerializer
 from .models import Dossier, DossierComment
 
 User = get_user_model()
@@ -59,6 +61,9 @@ class DossierCreateSerializer(serializers.ModelSerializer):
 
 class DossierListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for dossier lists."""
+    citizen = UserListSerializer(read_only=True)
+    assigned_agent = UserListSerializer(read_only=True)
+    commune = CommuneSerializer(read_only=True)
     citizen_name = serializers.CharField(source='citizen.full_name', read_only=True)
     agent_name = serializers.CharField(source='assigned_agent.full_name', read_only=True, default=None)
     type_display = serializers.CharField(source='get_type_display', read_only=True)
@@ -90,6 +95,9 @@ class DossierListSerializer(serializers.ModelSerializer):
 
 class DossierDetailSerializer(serializers.ModelSerializer):
     """Full serializer for dossier detail with comments."""
+    citizen = UserListSerializer(read_only=True)
+    assigned_agent = UserListSerializer(read_only=True)
+    commune = CommuneSerializer(read_only=True)
     citizen_name = serializers.CharField(source='citizen.full_name', read_only=True)
     citizen_email = serializers.CharField(source='citizen.email', read_only=True)
     agent_name = serializers.CharField(source='assigned_agent.full_name', read_only=True, default=None)

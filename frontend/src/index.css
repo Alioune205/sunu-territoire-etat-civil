@@ -112,7 +112,7 @@
     background: var(--layer-1);
     border: 1px solid var(--border-strong);
     border-radius: 12px;
-    padding: 20px 24px;
+    padding: 16px;
     box-shadow: var(--shadow-card);
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
@@ -121,7 +121,8 @@
   }
 
   .kpi-card-value {
-    font-size: 48px;
+    font-size: 30px;
+    line-height: 36px;
     font-weight: 700;
     color: var(--text-100);
     letter-spacing: -0.03em;
@@ -134,11 +135,15 @@
   }
 
   .card-icon {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border-radius: 8px;
     display: grid;
     place-items: center;
+  }
+  .card-icon svg {
+    width: 18px;
+    height: 18px;
   }
 
   .kpi-card.critical {

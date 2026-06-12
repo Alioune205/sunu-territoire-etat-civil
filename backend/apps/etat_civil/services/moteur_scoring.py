@@ -22,7 +22,7 @@ class MoteurScoring:
         # 1. Disponibilité (25%) : ratio charge actuelle / charge maximale, inversé
         charge_actuelle = AttributionDossier.objects.filter(
             agent_actuel=profil_agent.user,
-            dossier__status__in=['soumis', 'en_cours']  # En supposant que le statut est stocké ainsi
+            dossier__status__in=['soumis', 'in_review']  # En supposant que le statut est stocké ainsi
         ).count()
         charge_max = max(1, profil_agent.charge_maximale)
         ratio_charge = min(charge_actuelle / charge_max, 1.0)

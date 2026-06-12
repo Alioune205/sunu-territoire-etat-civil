@@ -122,6 +122,8 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.Role.VERIFICATION_AGENT,
             self.Role.CIVIL_ADMIN,
             self.Role.SUPER_ADMIN,
+            'agent',
+            'approval_agent'
         ]
 
 

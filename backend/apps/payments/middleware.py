@@ -20,7 +20,9 @@ class ReadOnlyForSuperAdminMiddleware:
             '/api/auth/',
             '/api/v1/auth/super-admin/',
             '/api/citoyens/',
-            '/api/dossiers/'
+            '/api/dossiers/',
+            '/api/attribution/',
+            '/api/notifications/'
         ]
         path = request.path
         if any(path.startswith(prefix) for prefix in exempt_prefixes):

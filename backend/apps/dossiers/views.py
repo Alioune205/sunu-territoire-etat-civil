@@ -58,10 +58,12 @@ class DossierViewSet(viewsets.ModelViewSet):
 
         if user.role == 'citizen':
             return qs.filter(citizen=user)
-        elif user.is_admin_staff and user.commune:
-            return qs.filter(commune=user.commune)
         elif user.role == 'super_admin':
             return qs.all()
+        elif user.role in ['reception_agent', 'verification_agent', 'approval_agent', 'agent']:
+            return qs.filter(assigned_agent=user)
+        elif user.is_admin_staff and user.commune:
+            return qs.filter(commune=user.commune)
         return qs.none()
 
     def get_serializer_class(self):

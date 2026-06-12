@@ -46,4 +46,11 @@ export const completeDossier = async (id) => {
   return response.data;
 };
 
+export const downloadPdf = async (id) => {
+  const response = await axiosClient.get(`/api/dossiers/${id}/download-pdf/`, {
+    responseType: 'blob',
+  });
+  return response.data;
+};
+
 

@@ -16,7 +16,7 @@ class StatsAttributionView(APIView):
     def get(self, request):
         total = Dossier.objects.count()
         en_attente = Dossier.objects.filter(status='soumis').count()
-        en_traitement = Dossier.objects.filter(status='en_cours').count()
+        en_traitement = Dossier.objects.filter(status='in_review').count()
         termines = Dossier.objects.filter(status='termine').count()
         rejetes = Dossier.objects.filter(status='rejete').count()
 
@@ -35,7 +35,7 @@ class AgentsChargeView(APIView):
         agents = ProfilAgent.objects.filter(user__is_active=True).select_related('user')
         data = []
         for agent in agents:
-            en_cours = AttributionDossier.objects.filter(agent_actuel=agent.user, dossier__status='en_cours').count()
+            en_cours = AttributionDossier.objects.filter(agent_actuel=agent.user, dossier__status='in_review').count()
             data.append({
                 'id': agent.user.id,
                 'email': agent.user.email,
@@ -52,7 +52,7 @@ class CarteAttributionView(APIView):
     pagination_class = StandardPagination
 
     def get(self, request):
-        queryset = AttributionDossier.objects.filter(dossier__status='en_cours').select_related('dossier', 'agent_actuel').order_by('-date_attribution')
+        queryset = AttributionDossier.objects.filter(dossier__status='in_review').select_related('dossier', 'agent_actuel').order_by('-date_attribution')
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request)
         

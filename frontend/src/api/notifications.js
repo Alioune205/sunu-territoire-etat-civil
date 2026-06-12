@@ -6,7 +6,7 @@ import axiosClient from './axiosClient';
  */
 export const getNotifications = async (params = {}) => {
   try {
-    const response = await axiosClient.get('/notifications/', { params });
+    const response = await axiosClient.get('/api/notifications/', { params });
     return response.data;
   } catch (error) {
     console.error('Erreur lors de la récupération des notifications', error);
@@ -20,7 +20,7 @@ export const getNotifications = async (params = {}) => {
  */
 export const markAsRead = async (id) => {
   try {
-    const response = await axiosClient.post(`/notifications/${id}/mark-read/`);
+    const response = await axiosClient.post(`/api/notifications/${id}/mark-read/`);
     return response.data;
   } catch (error) {
     console.error('Erreur lors du marquage de la notification', error);
@@ -33,7 +33,7 @@ export const markAsRead = async (id) => {
  */
 export const markAllAsRead = async () => {
   try {
-    const response = await axiosClient.post('/notifications/mark-all-read/');
+    const response = await axiosClient.post('/api/notifications/mark-all-read/');
     return response.data;
   } catch (error) {
     console.error('Erreur lors du marquage de toutes les notifications', error);

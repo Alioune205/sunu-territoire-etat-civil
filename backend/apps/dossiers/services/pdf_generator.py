@@ -272,19 +272,43 @@ def _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
         p.rect(1.5 * cm, current_y, width - 3 * cm, height_box)
         return current_y - 0.5 * cm
 
+    # --- Fallback & Extraction Logic ---
+    prenoms_enfant = metadata.get('prenoms_enfant')
+    nom_enfant = metadata.get('nom_enfant')
+    date_naissance_personne = metadata.get('date_naissance_personne')
+    lieu_naissance = metadata.get('lieu_naissance')
+    sexe = metadata.get('sexe')
+
+    if not dossier.is_for_third_party and citizen:
+        prenoms_enfant = prenoms_enfant or citizen.first_name
+        nom_enfant = nom_enfant or citizen.last_name
+        if hasattr(citizen, 'profile'):
+            date_naissance_personne = date_naissance_personne or str(citizen.profile.date_of_birth)
+            lieu_naissance = lieu_naissance or citizen.profile.place_of_birth
+            sexe = sexe or citizen.profile.get_gender_display()
+        
+    nom_enfant = nom_enfant or metadata.get('nom') or 'N/A'
+    prenoms_enfant = prenoms_enfant or 'N/A'
+    date_naissance_personne = date_naissance_personne or metadata.get('date_naissance') or 'N/A'
+    lieu_naissance = lieu_naissance or 'N/A'
+    sexe = sexe or 'N/A'
+
+    annee_registre = str(metadata.get('annee_registre', 'N/A'))
+    numero_registre = str(metadata.get('numero_registre') or metadata.get('registre', 'N/A'))
+
     # --- Infos Admin ---
     y -= 1 * cm
     y = draw_section("Informations Administratives", y, [
         ("Région", region_name, "Département", dept_name),
         ("Commune", commune_name, "Centre État Civil", commune_name),
-        ("Année Registre", str(metadata.get('annee_registre', 'N/A')), "Numéro Registre", str(metadata.get('numero_registre', 'N/A'))),
+        ("Année Registre", annee_registre, "Numéro Registre", numero_registre),
     ])
 
     # --- Infos Enfant ---
     y = draw_section("Informations de l'Enfant", y, [
-        ("Prénoms", metadata.get('prenoms_enfant', 'N/A'), "Nom", metadata.get('nom_enfant', 'N/A')),
-        ("Né(e) le", metadata.get('date_naissance_personne', 'N/A'), "Heure", metadata.get('heure_naissance', 'Non précisée')),
-        ("Lieu", metadata.get('lieu_naissance', 'N/A'), "Sexe", metadata.get('sexe', 'N/A')),
+        ("Prénoms", prenoms_enfant, "Nom", nom_enfant),
+        ("Né(e) le", date_naissance_personne, "Heure", metadata.get('heure_naissance', 'Non précisée')),
+        ("Lieu", lieu_naissance, "Sexe", sexe),
     ])
 
     # --- Infos Parents ---

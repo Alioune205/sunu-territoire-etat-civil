@@ -18,30 +18,38 @@ class StatusBadge extends StatelessWidget {
   _BadgeConfig get _config {
     switch (status) {
       case 'soumis':
+      case 'submitted':
         return _BadgeConfig(
           color: AppColors.statusBlue,
           bgColor: AppColors.statusBlueLight,
           icon: Icons.upload_outlined,
         );
       case 'en_verification':
+      case 'in_review':
         return _BadgeConfig(
           color: AppColors.statusAmber,
           bgColor: AppColors.statusAmberLight,
           icon: Icons.search_outlined,
         );
       case 'valide':
+      case 'validated':
+      case 'generated':
+      case 'approved':
         return _BadgeConfig(
           color: AppColors.statusGreen,
           bgColor: AppColors.statusGreenLight,
           icon: Icons.check_circle_outline,
         );
       case 'pret':
+      case 'delivered':
+      case 'completed':
         return _BadgeConfig(
           color: AppColors.statusGreen,
           bgColor: AppColors.statusGreenLight,
           icon: Icons.download_outlined,
         );
       case 'rejete':
+      case 'rejected':
         return _BadgeConfig(
           color: AppColors.statusRed,
           bgColor: AppColors.statusRedLight,
@@ -93,7 +101,14 @@ class DossierProgressStepper extends StatelessWidget {
   static const _steps = ['soumis', 'en_verification', 'valide', 'pret'];
 
   int get _currentIndex {
-    final idx = _steps.indexOf(currentStatus);
+    String normalizedStatus = currentStatus;
+    if (['soumis', 'submitted'].contains(currentStatus)) normalizedStatus = 'soumis';
+    else if (['en_verification', 'in_review'].contains(currentStatus)) normalizedStatus = 'en_verification';
+    else if (['valide', 'validated', 'generated', 'approved'].contains(currentStatus)) normalizedStatus = 'valide';
+    else if (['pret', 'delivered', 'completed'].contains(currentStatus)) normalizedStatus = 'pret';
+    else if (['rejete', 'rejected'].contains(currentStatus)) normalizedStatus = 'rejete';
+    
+    final idx = _steps.indexOf(normalizedStatus);
     return idx < 0 ? 0 : idx;
   }
 

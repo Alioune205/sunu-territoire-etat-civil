@@ -1,7 +1,7 @@
 // src/pages/DossierDetail.jsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getDossier, patchDossier, reviewDossier, approveDossier, rejectDossier, completeDossier } from '@/api/dossiers';
+import { getDossier, patchDossier, reviewDossier, approveDossier, rejectDossier, completeDossier, downloadPdf } from '@/api/dossiers';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   ArrowLeft,
   User,
@@ -31,6 +33,7 @@ import {
   X,
   Clock,
   Flag,
+  Edit,
 } from 'lucide-react';
 
 const WORKFLOW_STEPS = [
@@ -41,15 +44,15 @@ const WORKFLOW_STEPS = [
   { key: 'completed', label: 'Terminé', icon: Flag },
 ];
 
-const STATUS_ORDER = ['draft', 'submitted', 'in_review', 'approved', 'rejected', 'completed'];
+const STATUS_ORDER = ['draft', 'submitted', 'in_review', 'validated', 'generated', 'approved', 'delivered', 'completed', 'rejected'];
 
 function getStepStatus(stepKey, currentStatus) {
   const currentIndex = STATUS_ORDER.indexOf(currentStatus);
   
   if (stepKey === 'approved_or_rejected') {
     if (currentStatus === 'rejected') return 'rejected';
-    if (currentStatus === 'approved' || currentStatus === 'completed') return 'passed';
-    if (currentIndex >= STATUS_ORDER.indexOf('approved')) return 'passed';
+    if (['validated', 'generated', 'approved'].includes(currentStatus)) return 'passed';
+    if (currentIndex >= STATUS_ORDER.indexOf('approved') && currentStatus !== 'rejected') return 'passed';
     return 'future';
   }
   
@@ -57,14 +60,14 @@ function getStepStatus(stepKey, currentStatus) {
     draft: 0,
     submitted: 1,
     in_review: 2,
-    completed: 5,
+    completed: 8,
   };
   
   const stepIndex = stepMapping[stepKey];
   if (stepIndex === undefined) return 'future';
   
   if (stepKey === 'completed') {
-    return currentStatus === 'completed' ? 'passed' : 'future';
+    return ['delivered', 'completed'].includes(currentStatus) ? 'passed' : 'future';
   }
   
   if (stepIndex < currentIndex) return 'passed';
@@ -80,6 +83,21 @@ export default function DossierDetail() {
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  
+  const [editMetadataOpen, setEditMetadataOpen] = useState(false);
+  const [metadataForm, setMetadataForm] = useState({
+    prenoms_enfant: '',
+    nom_enfant: '',
+    date_naissance_personne: '',
+    heure_naissance: '',
+    lieu_naissance: '',
+    sexe: '',
+    prenom_pere: '',
+    prenom_mere: '',
+    nom_mere: '',
+    annee_registre: '',
+    numero_registre: ''
+  });
 
   useEffect(() => {
     fetchDossier();
@@ -99,23 +117,42 @@ export default function DossierDetail() {
   };
 
   const handleStatusChange = async (newStatus) => {
-    setActionLoading(true);
     try {
-      if (newStatus === 'in_review') {
-        await reviewDossier(id);
-      } else if (newStatus === 'approved') {
-        await approveDossier(id);
-      } else if (newStatus === 'completed') {
-        await completeDossier(id);
-      }
+      setActionLoading(true);
+      if (newStatus === 'in_review') await reviewDossier(dossier.id);
+      if (newStatus === 'approved') await approveDossier(dossier.id);
+      if (newStatus === 'completed') await completeDossier(dossier.id);
+      await fetchDossier();
+      toast({ title: 'Succès', description: 'Statut mis à jour.', variant: 'success' });
+    } catch (err) {
+      toast({ title: 'Erreur', description: "Impossible de modifier le statut.", variant: 'destructive' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    try {
+      setActionLoading(true);
+      const blob = await downloadPdf(dossier.id);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Certificat_${dossier.reference}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
       toast({
-        title: 'Statut mis à jour',
-        description: `Le dossier a été mis à jour avec succès.`,
+        title: 'PDF téléchargé',
+        description: `Le certificat ${dossier.reference} a été téléchargé avec succès.`,
         variant: 'success',
       });
-      fetchDossier();
-    } catch (error) {
-      toast({ title: 'Erreur', description: 'Impossible de mettre à jour le statut.', variant: 'destructive' });
+    } catch (err) {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de télécharger le PDF. Il se peut qu\'il ne soit pas encore généré.',
+        variant: 'destructive',
+      });
     } finally {
       setActionLoading(false);
     }
@@ -132,6 +169,37 @@ export default function DossierDetail() {
       fetchDossier();
     } catch (error) {
       toast({ title: 'Erreur', description: 'Impossible de rejeter le dossier.', variant: 'destructive' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleOpenEdit = () => {
+    setMetadataForm({
+      prenoms_enfant: dossier.metadata?.prenoms_enfant || '',
+      nom_enfant: dossier.metadata?.nom_enfant || dossier.metadata?.nom || '',
+      date_naissance_personne: dossier.metadata?.date_naissance_personne || dossier.metadata?.date_naissance || '',
+      heure_naissance: dossier.metadata?.heure_naissance || '',
+      lieu_naissance: dossier.metadata?.lieu_naissance || '',
+      sexe: dossier.metadata?.sexe || '',
+      prenom_pere: dossier.metadata?.prenom_pere || '',
+      prenom_mere: dossier.metadata?.prenom_mere || '',
+      nom_mere: dossier.metadata?.nom_mere || '',
+      annee_registre: dossier.metadata?.annee_registre || '',
+      numero_registre: dossier.metadata?.numero_registre || dossier.metadata?.registre || ''
+    });
+    setEditMetadataOpen(true);
+  };
+
+  const handleSaveMetadata = async () => {
+    try {
+      setActionLoading(true);
+      await patchDossier(id, { metadata: { ...dossier.metadata, ...metadataForm } });
+      toast({ title: 'Succès', description: 'Informations mises à jour.', variant: 'success' });
+      setEditMetadataOpen(false);
+      fetchDossier();
+    } catch (error) {
+      toast({ title: 'Erreur', description: 'Impossible de mettre à jour les informations.', variant: 'destructive' });
     } finally {
       setActionLoading(false);
     }
@@ -284,6 +352,43 @@ export default function DossierDetail() {
             </CardContent>
           </Card>
 
+          {/* Informations du Certificat */}
+          <Card className="border-slate-100">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-semibold text-secondary flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" />
+                Informations du Certificat
+              </CardTitle>
+              {dossier.status === 'in_review' && (
+                <Button variant="outline" size="sm" onClick={handleOpenEdit} className="h-8 gap-1">
+                  <Edit className="h-3.5 w-3.5" /> Éditer
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="mb-2">
+                <p className="text-xs font-semibold text-primary mb-1 uppercase">L'enfant</p>
+                <InfoRow label="Prénoms" value={dossier.metadata?.prenoms_enfant} />
+                <InfoRow label="Nom" value={dossier.metadata?.nom_enfant || dossier.metadata?.nom} />
+                <InfoRow label="Né(e) le" value={dossier.metadata?.date_naissance_personne || dossier.metadata?.date_naissance} />
+                <InfoRow label="Heure" value={dossier.metadata?.heure_naissance} />
+                <InfoRow label="Lieu" value={dossier.metadata?.lieu_naissance} />
+                <InfoRow label="Sexe" value={dossier.metadata?.sexe} />
+              </div>
+              <div className="mb-2">
+                <p className="text-xs font-semibold text-primary mb-1 uppercase mt-3">Parents</p>
+                <InfoRow label="Prénom du père" value={dossier.metadata?.prenom_pere} />
+                <InfoRow label="Prénoms de la mère" value={dossier.metadata?.prenom_mere} />
+                <InfoRow label="Nom de la mère" value={dossier.metadata?.nom_mere} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-primary mb-1 uppercase mt-3">Registre</p>
+                <InfoRow label="Année" value={dossier.metadata?.annee_registre} />
+                <InfoRow label="Numéro" value={dossier.metadata?.numero_registre || dossier.metadata?.registre} />
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Agent assigné */}
           <Card className="border-slate-100">
             <CardHeader className="pb-3">
@@ -402,7 +507,9 @@ export default function DossierDetail() {
       {/* Zone d'actions sticky en bas */}
       {(dossier.status === 'submitted' ||
         dossier.status === 'in_review' ||
-        dossier.status === 'approved') && (
+        dossier.status === 'approved' ||
+        dossier.status === 'validated' ||
+        dossier.status === 'generated') && (
         <div className="sticky bottom-0 bg-white border-t border-slate-100 shadow-lg rounded-t-xl p-4 -mx-6 -mb-6">
           <div className="flex items-center justify-end gap-3 max-w-7xl mx-auto">
             {dossier.status === 'submitted' && (
@@ -458,7 +565,7 @@ export default function DossierDetail() {
               </>
             )}
 
-            {dossier.status === 'approved' && (
+            {['approved', 'validated', 'generated'].includes(dossier.status) && (
               <>
                 <Button
                   onClick={() => handleStatusChange('completed')}
@@ -472,10 +579,15 @@ export default function DossierDetail() {
                   )}
                   Marquer terminé
                 </Button>
-                <Button disabled variant="outline" title="PDF disponible après livraison DEV 1B" className="gap-2">
-                  <FileDown className="h-4 w-4" /> PDF (bientôt)
+                <Button 
+                  onClick={handleDownloadPdf}
+                  disabled={actionLoading} 
+                  variant="outline" 
+                  title="Télécharger le certificat au format PDF" 
+                  className="gap-2"
+                >
+                  <FileDown className="h-4 w-4" /> PDF
                 </Button>
-                {/* TODO: brancher POST /api/dossiers/{id}/generer-pdf/ (DEV 1B) */}
               </>
             )}
           </div>
@@ -514,6 +626,129 @@ export default function DossierDetail() {
             >
               {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirmer le rejet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog d'édition des métadonnées */}
+      <Dialog open={editMetadataOpen} onOpenChange={setEditMetadataOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Éditer les informations du certificat</DialogTitle>
+            <DialogDescription>
+              Remplissez les informations extraites depuis l'image ou le registre physique.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1">L'enfant</div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="prenoms_enfant">Prénoms</Label>
+              <Input 
+                id="prenoms_enfant" 
+                value={metadataForm.prenoms_enfant}
+                onChange={(e) => setMetadataForm({...metadataForm, prenoms_enfant: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nom_enfant">Nom</Label>
+              <Input 
+                id="nom_enfant" 
+                value={metadataForm.nom_enfant}
+                onChange={(e) => setMetadataForm({...metadataForm, nom_enfant: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="date_naissance_personne">Date de naissance</Label>
+              <Input 
+                id="date_naissance_personne" 
+                type="date"
+                value={metadataForm.date_naissance_personne}
+                onChange={(e) => setMetadataForm({...metadataForm, date_naissance_personne: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="heure_naissance">Heure de naissance</Label>
+              <Input 
+                id="heure_naissance" 
+                placeholder="ex: 14h30"
+                value={metadataForm.heure_naissance}
+                onChange={(e) => setMetadataForm({...metadataForm, heure_naissance: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lieu_naissance">Lieu de naissance</Label>
+              <Input 
+                id="lieu_naissance" 
+                value={metadataForm.lieu_naissance}
+                onChange={(e) => setMetadataForm({...metadataForm, lieu_naissance: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sexe">Sexe</Label>
+              <Input 
+                id="sexe" 
+                placeholder="M ou F"
+                value={metadataForm.sexe}
+                onChange={(e) => setMetadataForm({...metadataForm, sexe: e.target.value})}
+              />
+            </div>
+
+            <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1 mt-2">Les Parents</div>
+            
+            <div className="col-span-2 space-y-2">
+              <Label htmlFor="prenom_pere">Prénom du père</Label>
+              <Input 
+                id="prenom_pere" 
+                value={metadataForm.prenom_pere}
+                onChange={(e) => setMetadataForm({...metadataForm, prenom_pere: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="prenom_mere">Prénoms de la mère</Label>
+              <Input 
+                id="prenom_mere" 
+                value={metadataForm.prenom_mere}
+                onChange={(e) => setMetadataForm({...metadataForm, prenom_mere: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nom_mere">Nom de la mère</Label>
+              <Input 
+                id="nom_mere" 
+                value={metadataForm.nom_mere}
+                onChange={(e) => setMetadataForm({...metadataForm, nom_mere: e.target.value})}
+              />
+            </div>
+
+            <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1 mt-2">Le Registre</div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="annee_registre">Année du registre</Label>
+              <Input 
+                id="annee_registre" 
+                placeholder="ex: 2026"
+                value={metadataForm.annee_registre}
+                onChange={(e) => setMetadataForm({...metadataForm, annee_registre: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="numero_registre">Numéro de registre</Label>
+              <Input 
+                id="numero_registre" 
+                value={metadataForm.numero_registre}
+                onChange={(e) => setMetadataForm({...metadataForm, numero_registre: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditMetadataOpen(false)}>Annuler</Button>
+            <Button onClick={handleSaveMetadata} disabled={actionLoading}>
+              {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Sauvegarder
             </Button>
           </DialogFooter>
         </DialogContent>

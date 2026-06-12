@@ -56,19 +56,33 @@ abstract class AppFormatters {
 
   static String statusLabel(String status) {
     const labels = {
-      'soumis': 'Soumis', 'en_verification': 'En vérification',
-      'valide': 'Validé', 'pret': 'Prêt', 'rejete': 'Rejeté', 'en_cours': 'En cours',
+      'soumis': 'Soumis', 'submitted': 'Soumis',
+      'en_verification': 'En vérification', 'in_review': 'En vérification',
+      'valide': 'Validé', 'validated': 'Validé',
+      'generated': 'Généré', 'approved': 'Approuvé',
+      'pret': 'Prêt', 'delivered': 'Délivré', 'completed': 'Terminé',
+      'rejete': 'Rejeté', 'rejected': 'Rejeté',
+      'en_cours': 'En cours',
     };
     return labels[status] ?? titleCase(status.replaceAll('_', ' '));
   }
 
   static String certTypeLabel(String type) {
     const labels = {
-      'naissance': 'Certificat de naissance',
-      'deces': 'Certificat de décès',
-      'mariage': 'Certificat de mariage',
+      'extrait_naissance': 'Extrait de naissance',
+      'birth_certificate': 'Extrait de naissance',
+      'declaration_naissance': 'Déclaration de naissance',
+      'mariage': 'Mariage',
+      'marriage_certificate': 'Extrait de mariage',
+      'deces': 'Décès',
+      'death_certificate': 'Certificat de décès',
+      'legalisation': 'Légalisation',
+      'certificat_residence': 'Certificat de résidence',
+      'residence_certificate': 'Certificat de résidence',
+      'jugement_suppletif': 'Jugement supplétif',
+      'other': 'Autre',
     };
-    return labels[type] ?? titleCase(type);
+    return labels[type] ?? titleCase(type.replaceAll('_', ' '));
   }
 
   static String paymentMethodLabel(String method) {

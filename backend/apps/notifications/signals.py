@@ -32,18 +32,20 @@ logger = logging.getLogger('system')
 @receiver(pre_save, sender=Dossier)
 def capture_old_status(sender, instance, **kwargs):
     """
-    Capture l'ancien statut avant la sauvegarde pour pouvoir 
+    Capture l'ancien statut et l'ancien agent avant la sauvegarde pour pouvoir 
     envoyer la notification dans le post_save en toute sécurité.
-    Correction d'audit : Ne pas envoyer de push si la sauvegarde échoue.
     """
     if instance.pk:
         try:
             old_instance = Dossier.objects.get(pk=instance.pk)
             instance._old_status = old_instance.status
+            instance._old_assigned_agent_id = old_instance.assigned_agent_id
         except Dossier.DoesNotExist:
             instance._old_status = None
+            instance._old_assigned_agent_id = None
     else:
         instance._old_status = None
+        instance._old_assigned_agent_id = None
 
 
 @receiver(post_save, sender=Dossier)
@@ -52,6 +54,10 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
     Envoie une notification FCM au citoyen/agent quand le statut d'un dossier change.
     Utilise `post_save` pour garantir que la donnée est commitée en base.
     """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    from django.db.models import Q
+
     if created:
         # Nouveau dossier — notifier uniquement si soumis directement
         if instance.status == Dossier.Status.SUBMITTED:
@@ -62,19 +68,33 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
                 notification_type=Notification.Type.UPDATE,
                 data={'dossier_id': str(instance.id)}
             )
-            # Notifier les agents de la commune
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            agents = User.objects.filter(
-                commune=instance.commune,
-                role=User.Role.RECEPTION_AGENT,
+            # Notifier les administrateurs (Super Admin et Maire)
+            admins = User.objects.filter(
+                Q(role=User.Role.CIVIL_ADMIN, commune=instance.commune) | Q(role=User.Role.SUPER_ADMIN),
                 is_active=True
             )
-            if agents.exists():
-                pass # FCMService.send_bulk_notification is not implemented
+            for admin in admins:
+                send_notification_async(
+                    user=admin,
+                    title="Nouvelle demande reçue",
+                    body=f"Une nouvelle demande ({instance.reference}) a été soumise dans votre commune.",
+                    notification_type=Notification.Type.INFO,
+                    data={'dossier_id': str(instance.id)}
+                )
         return
 
     old_status = getattr(instance, '_old_status', None)
+    old_assigned_agent_id = getattr(instance, '_old_assigned_agent_id', None)
+
+    # Vérifier si l'agent a changé (nouvelle assignation)
+    if instance.assigned_agent_id and instance.assigned_agent_id != old_assigned_agent_id:
+        send_notification_async(
+            user=instance.assigned_agent,
+            title="Nouveau dossier attribué",
+            body=f"Le dossier {instance.reference} vous a été attribué pour traitement.",
+            notification_type=Notification.Type.INFO,
+            data={'dossier_id': str(instance.id)}
+        )
 
     # Pas de changement de statut → rien à faire
     if old_status == instance.status:
@@ -90,26 +110,21 @@ def dossier_status_change_notification(sender, instance, created, **kwargs):
             notification_type=Notification.Type.UPDATE,
             data={'dossier_id': str(instance.id)}
         )
-        # Notifier les agents de la commune
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        agents = User.objects.filter(
-            commune=instance.commune,
-            role=User.Role.RECEPTION_AGENT,
+        # Notifier les administrateurs
+        admins = User.objects.filter(
+            Q(role=User.Role.CIVIL_ADMIN, commune=instance.commune) | Q(role=User.Role.SUPER_ADMIN),
             is_active=True
         )
-        if agents.exists():
-            pass # FCMService.send_bulk_notification is not implemented
+        for admin in admins:
+            send_notification_async(
+                user=admin,
+                title="Nouvelle demande reçue",
+                body=f"Une nouvelle demande ({instance.reference}) a été soumise dans votre commune.",
+                notification_type=Notification.Type.INFO,
+                data={'dossier_id': str(instance.id)}
+            )
 
-    elif instance.status == Dossier.Status.IN_REVIEW and instance.assigned_agent:
-        # Notifier l'agent assigné
-        send_notification_async(
-            user=instance.assigned_agent,
-            title="Nouveau dossier attribué",
-            body=f"Le dossier {instance.reference} vous a été attribué pour traitement.",
-            notification_type=Notification.Type.INFO,
-            data={'dossier_id': str(instance.id)}
-        )
+    elif instance.status == Dossier.Status.IN_REVIEW:
         # Notifier le citoyen que son dossier est en cours de traitement
         send_notification_async(
             user=instance.citizen,

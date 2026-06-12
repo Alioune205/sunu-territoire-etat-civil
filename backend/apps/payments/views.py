@@ -35,23 +35,31 @@ class InitiatePaymentView(APIView):
             service_label=f"Frais de traitement - Dossier {str(dossier_id)[:8] if dossier_id else 'Inconnu'}",
         )
         
-        # --- NOUVEAU : Envoi du signal Temps Réel (WebSockets) ---
-        try:
-            from channels.layers import get_channel_layer
-            from asgiref.sync import async_to_sync
-            from .serializers import PaymentTransactionSerializer
-            
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                'admin_dashboard',
-                {
-                    'type': 'dashboard_update',
-                    'message': 'new_transaction',
-                    'data': PaymentTransactionSerializer(tx).data
-                }
-            )
-        except Exception as e:
-            print(f"Erreur WebSocket: {e}")
+        # Mise à jour du statut du dossier à 'soumis' (payé)
+        from apps.dossiers.models import Dossier
+        if dossier_id:
+            try:
+                dossier = Dossier.objects.get(id=dossier_id)
+                dossier.status = Dossier.Status.SUBMITTED
+                from django.utils import timezone
+                dossier.submitted_at = timezone.now()
+                dossier.save(update_fields=['status', 'submitted_at'])
+                
+                # --- Envoi du signal Temps Réel (WebSockets) ---
+                from channels.layers import get_channel_layer
+                from asgiref.sync import async_to_sync
+                from apps.dossiers.serializers import DossierDetailSerializer
+                channel_layer = get_channel_layer()
+                async_to_sync(channel_layer.group_send)(
+                    'admin_dashboard',
+                    {
+                        'type': 'dashboard_update',
+                        'message': 'new_dossier',
+                        'data': DossierDetailSerializer(dossier).data
+                    }
+                )
+            except Dossier.DoesNotExist:
+                pass
         
         # Réponse attendue par le mobile
         return success_response(

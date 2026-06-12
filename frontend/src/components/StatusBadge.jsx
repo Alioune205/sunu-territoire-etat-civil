@@ -18,6 +18,18 @@ const STATUS_CONFIG = {
     label: 'Approuvé',
     className: 'bg-[#10B981] text-white border-[#10B981]',
   },
+  validated: {
+    label: 'Validé',
+    className: 'bg-[#10B981] text-white border-[#10B981]',
+  },
+  generated: {
+    label: 'Généré',
+    className: 'bg-[#8B5CF6] text-white border-[#8B5CF6]',
+  },
+  delivered: {
+    label: 'Délivré',
+    className: 'bg-[#0F172A] text-white border-[#0F172A]',
+  },
   rejected: {
     label: 'Rejeté',
     className: 'bg-[#EF4444] text-white border-[#EF4444]',

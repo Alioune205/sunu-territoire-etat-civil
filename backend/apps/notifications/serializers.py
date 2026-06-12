@@ -21,10 +21,14 @@ class NotificationSerializer(serializers.ModelSerializer):
 class CitizenNotificationSerializer(serializers.ModelSerializer):
     """Sérialiseur pour la liste des notifications du citoyen."""
     body = serializers.CharField(source='message')
+    related_dossier_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Notification
-        fields = ['id', 'title', 'body', 'is_read', 'created_at']
+        fields = ['id', 'title', 'body', 'is_read', 'created_at', 'related_dossier_id']
+
+    def get_related_dossier_id(self, obj):
+        return obj.data.get('dossier_id') if isinstance(obj.data, dict) else None
 
 
 class DeviceTokenSerializer(serializers.ModelSerializer):
