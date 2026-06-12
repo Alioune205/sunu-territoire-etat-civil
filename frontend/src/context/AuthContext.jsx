@@ -2,6 +2,7 @@
 import { createContext, useState, useEffect, useCallback } from 'react';
 import { loginAPI, logoutAPI } from '@/api/auth';
 import { jwtDecode } from 'jwt-decode';
+import { clearSecureImageCache } from '@/hooks/useSecureImage';
 
 export const AuthContext = createContext(null);
 
@@ -66,6 +67,7 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.warn('Logout error:', error);
     } finally {
+      clearSecureImageCache();
       localStorage.clear();
       setUser(null);
       setToken(null);

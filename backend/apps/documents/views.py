@@ -391,14 +391,24 @@ class DocumentViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
 
         try:
-            # FileResponse gère l'ouverture et la fermeture du fichier automatiquement
-            # as_attachment=True force le téléchargement (Content-Disposition: attachment)
-            response = FileResponse(
-                instance.file.open('rb'),
-                as_attachment=True,
-                filename=instance.original_filename,
-                content_type=instance.mime_type or 'application/octet-stream',
-            )
+            from django.conf import settings
+            from django.http import HttpResponse
+
+            if not settings.DEBUG:
+                # Production: délégation à Nginx via X-Accel-Redirect
+                response = HttpResponse(content_type=instance.mime_type or 'application/octet-stream')
+                response['X-Accel-Redirect'] = instance.file.url
+                # On peut rajouter Content-Disposition si on veut forcer le téléchargement,
+                # mais en inline ça permet au frontend de l'afficher via blob URL.
+                response['Content-Disposition'] = f'inline; filename="{instance.original_filename}"'
+            else:
+                # Développement: FileResponse direct
+                response = FileResponse(
+                    instance.file.open('rb'),
+                    as_attachment=False,
+                    filename=instance.original_filename,
+                    content_type=instance.mime_type or 'application/octet-stream',
+                )
 
             # Journalisation du téléchargement réussi
             logger.info(

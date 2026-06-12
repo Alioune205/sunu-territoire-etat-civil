@@ -15,7 +15,7 @@ from .ocr import (
 )
 from .validators import validate_citizen_document, check_dossier_duplicate
 from .chatbot import chat_orchestrator
-from .faq import get_faq_answer
+from .faq import find_closest_faq
 from .ndiogoye import process_ndiogoye_chat
 from .models import NdiogoyeChatLog
 from .serializers import NdiogoyeChatLogSerializer
