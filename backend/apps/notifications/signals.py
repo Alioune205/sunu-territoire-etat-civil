@@ -192,17 +192,33 @@ def invalidate_dashboard_cache_on_dossier_change(sender, instance, **kwargs):
         )
         
         # Broadcast WebSocket Temps Réel au citoyen (DEV 3/4 Flutter)
-        async_to_sync(channel_layer.group_send)(
-            f'user_{instance.citizen.id}',
-            {
-                'type': 'notification_push',
-                'notification': {
-                    'title': "Mise à jour de dossier",
-                    'body': f"Le statut de votre dossier {instance.reference} a changé.",
-                    'dossier_id': str(instance.id),
-                    'status': instance.status
+        if instance.citizen:
+            async_to_sync(channel_layer.group_send)(
+                f'user_{instance.citizen.id}',
+                {
+                    'type': 'notification_push',
+                    'notification': {
+                        'title': "Mise à jour de dossier",
+                        'body': f"Le statut de votre dossier {instance.reference} a changé.",
+                        'dossier_id': str(instance.id),
+                        'status': instance.status
+                    }
                 }
-            }
-        )
+            )
+
+        # Broadcast WebSocket Temps Réel à l'agent assigné
+        if instance.assigned_agent_id:
+            async_to_sync(channel_layer.group_send)(
+                f'user_{instance.assigned_agent_id}',
+                {
+                    'type': 'notification_push',
+                    'notification': {
+                        'title': "Mise à jour de dossier",
+                        'body': f"Le statut du dossier {instance.reference} a changé.",
+                        'dossier_id': str(instance.id),
+                        'status': instance.status
+                    }
+                }
+            )
     except Exception as e:
         logger.warning(f'[Signals] Erreur lors du broadcast WebSocket ou invalidation cache : {e}')

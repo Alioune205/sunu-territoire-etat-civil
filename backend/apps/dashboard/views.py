@@ -300,9 +300,19 @@ class ExportDossiersCSVView(APIView):
         from datetime import datetime
         date_debut_str = request.query_params.get('date_debut')
         date_fin_str = request.query_params.get('date_fin')
+        type_acte = request.query_params.get('type')
+        status_dossier = request.query_params.get('status')
+        agent_id = request.query_params.get('assigned_agent')
 
-        queryset = get_base_queryset(request.user).select_related('citizen', 'commune').all().order_by('-created_at')
+        queryset = get_base_queryset(request.user).select_related('citizen', 'commune', 'assigned_agent').all().order_by('-created_at')
         
+        if type_acte:
+            queryset = queryset.filter(type=type_acte)
+        if status_dossier:
+            queryset = queryset.filter(status=status_dossier)
+        if agent_id:
+            queryset = queryset.filter(assigned_agent_id=agent_id)
+
         if date_debut_str:
             try:
                 date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date()
@@ -332,13 +342,17 @@ class ExportDossiersCSVView(APIView):
             pseudo_buffer = Echo()
             writer = csv.DictWriter(
                 pseudo_buffer,
-                fieldnames=['reference', 'type', 'statut', 'citoyen', 'commune', 'date_soumission', 'date_completion']
+                fieldnames=['reference', 'type', 'statut', 'citoyen', 'commune', 'agent_traitant', 'date_soumission', 'date_completion']
             )
             yield writer.writeheader()
             for dossier in queryset:
                 citoyen_name = ""
                 if dossier.citizen:
                     citoyen_name = f"{dossier.citizen.first_name} {dossier.citizen.last_name}".strip() or "Citoyen Inconnu"
+                
+                agent_name = ""
+                if dossier.assigned_agent:
+                    agent_name = f"{dossier.assigned_agent.first_name} {dossier.assigned_agent.last_name}".strip() or "Agent Inconnu"
                 
                 commune_name = dossier.commune.name if dossier.commune else ""
                 
@@ -351,6 +365,7 @@ class ExportDossiersCSVView(APIView):
                     'statut': dossier.status,
                     'citoyen': citoyen_name,
                     'commune': commune_name,
+                    'agent_traitant': agent_name,
                     'date_soumission': date_soumission,
                     'date_completion': date_completion
                 })
