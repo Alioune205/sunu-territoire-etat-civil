@@ -40,6 +40,7 @@ class DossierCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Dossier
         fields = [
+            'id',
             'type',
             'commune',
             'notes',
@@ -48,6 +49,7 @@ class DossierCreateSerializer(serializers.ModelSerializer):
             'third_party_relation',
             'metadata',
         ]
+        read_only_fields = ['id']
 
     def create(self, validated_data):
         validated_data['citizen'] = self.context['request'].user

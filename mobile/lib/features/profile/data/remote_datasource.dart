@@ -15,7 +15,7 @@ class ProfileRemoteDatasource {
   }
 
   Future<UserResponseModel> updateProfile(Map<String, dynamic> data) async {
-    final res = await client.patch('/profiles/me/', data: data);
+    final res = await client.patch('/users/me/', data: data);
     if (res.statusCode == 200 && res.data != null) {
       return UserResponseModel.fromJson(res.data as Map<String, dynamic>);
     }
@@ -27,7 +27,7 @@ class ProfileRemoteDatasource {
     required String oldPinHash,
     required String newPin,
   }) async {
-    final res = await client.post('/profiles/change-pin/', data: {
+    final res = await client.post('/users/change-pin/', data: {
       'old_pin_hash': oldPinHash,
       'new_pin': newPin,
     });

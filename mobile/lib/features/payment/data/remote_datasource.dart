@@ -11,7 +11,7 @@ class PaymentRemoteDatasource {
     required String method,
     required String phone,
   }) async {
-    final res = await client.post('/payments/initiate/', data: {
+    final res = await client.post('/initiate/', data: {
       'dossier_id': dossierId,
       'method': method,
       'phone': phone,

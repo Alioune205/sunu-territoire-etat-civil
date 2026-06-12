@@ -34,10 +34,10 @@ class NetworkInterceptor extends Interceptor {
       
       debugPrint('[NetworkInterceptor] onRequest path=${options.path} read token=$token');
       
-      final isAuthRouteWithoutToken = options.path.contains('/api/auth/login') ||
-          options.path.contains('/api/auth/register') ||
-          options.path.contains('/api/auth/otp/send') ||
-          options.path.contains('/api/auth/otp/verify');
+      final isAuthRouteWithoutToken = options.path.contains('/auth/login') ||
+          options.path.contains('/auth/register') ||
+          options.path.contains('/auth/otp/send') ||
+          options.path.contains('/auth/otp/verify');
 
       if (token != null && token.isNotEmpty && !isAuthRouteWithoutToken) {
         options.headers['Authorization'] = 'Bearer $token';

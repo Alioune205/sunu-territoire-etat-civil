@@ -3,7 +3,8 @@ Views for Dossier management with workflow actions.
 """
 from django.utils import timezone
 
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
+from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
@@ -99,10 +100,15 @@ class DossierViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(f"Erreur WebSocket: {e}")
             
-        return success_response(
-            data=DossierDetailSerializer(dossier).data,
-            message='Dossier créé avec succès.',
-            status_code=status.HTTP_201_CREATED,
+        return Response(
+            {
+                'success': True,
+                'message': 'Dossier créé avec succès.',
+                'data': DossierDetailSerializer(dossier).data,
+                'id': str(dossier.id),
+                'errors': None,
+            },
+            status=status.HTTP_201_CREATED,
         )
 
     def retrieve(self, request, *args, **kwargs):

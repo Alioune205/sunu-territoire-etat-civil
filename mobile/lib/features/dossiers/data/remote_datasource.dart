@@ -32,7 +32,11 @@ class DossiersRemoteDatasource {
   Future<String> submitCertificate(Map<String, dynamic> payload) async {
     final res = await client.post('/dossiers/', data: payload);
     if ((res.statusCode == 200 || res.statusCode == 201) && res.data != null) {
-      return (res.data as Map<String, dynamic>)['id'] as String;
+      final responseData = res.data as Map<String, dynamic>;
+      if (responseData.containsKey('data') && responseData['data'] is Map) {
+        return responseData['data']['id'] as String;
+      }
+      return responseData['id'] as String;
     }
     throw ApiException(
         message: 'Erreur lors de la soumission', statusCode: res.statusCode);

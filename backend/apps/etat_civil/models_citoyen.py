@@ -90,6 +90,7 @@ class Citoyen(TimeStampedModel):
     est_actif = models.BooleanField(default=True, verbose_name="Est actif")
 
     class Meta:
+        app_label = 'etat_civil'
         verbose_name = "Citoyen"
         verbose_name_plural = "Citoyens"
         ordering = ['-created_at']

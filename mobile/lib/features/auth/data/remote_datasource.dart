@@ -15,7 +15,7 @@ class AuthRemoteDatasource {
     Response? res;
     try {
       res = await client.post('/auth/login/', data: {
-        'identifier': identifier,
+        'email': identifier,
         'password': password,
       });
       if (res.statusCode == 401) throw const InvalidCredentialsException();
