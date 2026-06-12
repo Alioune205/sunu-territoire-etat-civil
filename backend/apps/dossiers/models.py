@@ -73,6 +73,11 @@ class Dossier(TimeStampedModel):
         default='',
         verbose_name='Notes',
     )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='Métadonnées (Formulaire dynamique)',
+    )
     rejection_reason = models.TextField(
         blank=True,
         default='',

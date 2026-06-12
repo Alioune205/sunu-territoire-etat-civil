@@ -37,7 +37,40 @@ class DossierCreateSerializer(serializers.ModelSerializer):
             'type',
             'commune',
             'notes',
+            'metadata',
         ]
+
+    def validate(self, attrs):
+        dossier_type = attrs.get('type')
+        metadata = attrs.get('metadata', {})
+        
+        from datetime import datetime, timedelta
+        
+        # Validations métier pour les nouveaux actes (Tâche 8 : Pièces jointes JSON)
+        if dossier_type == Dossier.Type.RESIDENCE_CERTIFICATE:
+            if not metadata.get('cni_recto') or not metadata.get('attestation_delegue'):
+                raise serializers.ValidationError("Pour un certificat de résidence, le payload JSON doit contenir 'cni_recto' et 'attestation_delegue'.")
+                
+        elif dossier_type == Dossier.Type.DEATH_CERTIFICATE:
+            if not metadata.get('constat_medecin') or not metadata.get('cni_defunt'):
+                raise serializers.ValidationError("Pour un acte de décès, le payload JSON doit contenir 'constat_medecin' et 'cni_defunt'.")
+            
+            # Tâche 7 : Blocage de délai (date_deces <= 1 an)
+            date_deces_str = metadata.get('date_deces')
+            if not date_deces_str:
+                raise serializers.ValidationError("La 'date_deces' est requise pour un acte de décès.")
+            try:
+                date_deces = datetime.strptime(date_deces_str, "%Y-%m-%d").date()
+                if (datetime.now().date() - date_deces).days > 365:
+                    raise serializers.ValidationError("Un acte de décès ne peut être établi si la date de décès remonte à plus d'un an.")
+            except ValueError:
+                raise serializers.ValidationError("Le format de 'date_deces' doit être YYYY-MM-DD.")
+                
+        elif dossier_type == Dossier.Type.MARRIAGE_CERTIFICATE:
+            if not metadata.get('cni_epoux') or not metadata.get('cni_epouse') or not metadata.get('cni_temoins'):
+                raise serializers.ValidationError("Pour un acte de mariage, le payload JSON doit contenir 'cni_epoux', 'cni_epouse' et 'cni_temoins'.")
+
+        return attrs
 
     def create(self, validated_data):
         validated_data['citizen'] = self.context['request'].user
@@ -102,6 +135,7 @@ class DossierDetailSerializer(serializers.ModelSerializer):
             'commune',
             'commune_name',
             'notes',
+            'metadata',
             'rejection_reason',
             'submitted_at',
             'reviewed_at',
@@ -122,7 +156,39 @@ class DossierUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Dossier
-        fields = ['notes']
+        fields = ['notes', 'metadata']
+        
+    def validate(self, attrs):
+        # Valider également lors de l'update si metadata est fourni
+        if 'metadata' in attrs:
+            instance = getattr(self, 'instance', None)
+            dossier_type = instance.type if instance else attrs.get('type')
+            metadata = attrs.get('metadata', {})
+            
+            from datetime import datetime
+            if dossier_type == Dossier.Type.RESIDENCE_CERTIFICATE:
+                if not metadata.get('cni_recto') or not metadata.get('attestation_delegue'):
+                    raise serializers.ValidationError("Pour un certificat de résidence, le payload JSON doit contenir 'cni_recto' et 'attestation_delegue'.")
+                    
+            elif dossier_type == Dossier.Type.DEATH_CERTIFICATE:
+                if not metadata.get('constat_medecin') or not metadata.get('cni_defunt'):
+                    raise serializers.ValidationError("Pour un acte de décès, le payload JSON doit contenir 'constat_medecin' et 'cni_defunt'.")
+                
+                date_deces_str = metadata.get('date_deces')
+                if not date_deces_str:
+                    raise serializers.ValidationError("La 'date_deces' est requise pour un acte de décès.")
+                try:
+                    date_deces = datetime.strptime(date_deces_str, "%Y-%m-%d").date()
+                    if (datetime.now().date() - date_deces).days > 365:
+                        raise serializers.ValidationError("Un acte de décès ne peut être établi si la date de décès remonte à plus d'un an.")
+                except ValueError:
+                    raise serializers.ValidationError("Le format de 'date_deces' doit être YYYY-MM-DD.")
+                    
+            elif dossier_type == Dossier.Type.MARRIAGE_CERTIFICATE:
+                if not metadata.get('cni_epoux') or not metadata.get('cni_epouse') or not metadata.get('cni_temoins'):
+                    raise serializers.ValidationError("Pour un acte de mariage, le payload JSON doit contenir 'cni_epoux', 'cni_epouse' et 'cni_temoins'.")
+
+        return attrs
 
 
 class DossierAssignSerializer(serializers.Serializer):

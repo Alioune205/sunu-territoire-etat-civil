@@ -14,7 +14,7 @@ from .ocr import (
     extract_cni_data_from_base64,
 )
 from .validators import validate_citizen_document, check_dossier_duplicate
-from .faq import get_faq_answer
+from .faq import find_closest_faq
 from .ndiogoye import process_ndiogoye_chat
 
 
@@ -178,7 +178,7 @@ class FAQAssistantView(APIView):
         if not question:
             return Response({'error': 'Veuillez poser une question.'}, status=400)
             
-        answer = get_faq_answer(question)
+        answer = find_closest_faq(question)
         
         return Response({
             'question': question,
