@@ -118,6 +118,38 @@ export default function Transactions() {
     fetchTransactions();
   }, [fetchStats, fetchTransactions]);
 
+  // --- NOUVEAU : Connexion Temps Réel (WebSockets) ---
+  useEffect(() => {
+    // Construction de l'URL WebSocket à partir de l'URL de l'API
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+    const wsUrl = baseUrl.replace('http', 'ws').replace('/api', '/ws/dashboard/');
+      
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => console.log('🔗 Connecté au serveur Temps Réel (Transactions)');
+
+    ws.onmessage = (event) => {
+      const parsed = JSON.parse(event.data);
+      if (parsed.message === 'new_transaction') {
+        // Notification toast visuelle
+        toast({
+          title: 'Nouvelle Transaction ! 💸',
+          description: `Un paiement de ${parsed.data.amount} FCFA a été validé.`,
+          variant: 'default',
+          className: 'bg-green-50 border-green-200 text-green-900',
+        });
+        // Rafraîchir les données silencieusement
+        fetchStats();
+        fetchTransactions();
+      }
+    };
+
+    ws.onclose = () => console.log('❌ Déconnecté du serveur Temps Réel');
+
+    // Nettoyage à la fermeture de la page
+    return () => ws.close();
+  }, [fetchStats, fetchTransactions]);
+
   // Refresh automatique toutes les 60 secondes
   useEffect(() => {
     const interval = setInterval(() => {

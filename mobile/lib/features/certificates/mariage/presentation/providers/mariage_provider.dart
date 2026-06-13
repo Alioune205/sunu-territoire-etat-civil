@@ -30,9 +30,9 @@ class MariageNotifier extends StateNotifier<MariageState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final id = await _ds.submitCertificate({
-        'type': 'mariage',
-        'commune_id': communeId,
-        'beneficiary': {
+        'type': 'marriage_certificate',
+        'commune': communeId,
+        'metadata': {
           'registre_marriage': registreMarriage,
           'annee_marriage': anneeMarriage,
           'nom_epoux': nomEpoux,

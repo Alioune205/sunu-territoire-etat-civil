@@ -38,7 +38,9 @@ export function KPICard({
   icon: Icon, 
   loading = false, 
   trend,
-  criticalStatus // 'warning' | 'error' | 'success' | 'info'
+  criticalStatus, // 'warning' | 'error' | 'success' | 'info'
+  iconColorClass, // e.g., 'text-blue-700 bg-blue-50 dark:bg-blue-900/20'
+  onClick // Navigation handler
 }) {
   const numericValue = typeof value === 'number' ? value : parseFloat(value) || 0;
   const isPercentage = typeof value === 'string' && value.includes('%');
@@ -59,16 +61,23 @@ export function KPICard({
     );
   }
 
-  const statusClass = criticalStatus === 'warning' ? 'critical' : criticalStatus === 'error' ? 'error' : '';
+  const statusClass = (numericValue > 0 && criticalStatus === 'warning') ? 'critical' 
+    : (numericValue > 0 && criticalStatus === 'error') ? 'error' 
+    : (numericValue === 0) ? 'border border-gray-200 dark:border-gray-700' 
+    : '';
+  
   const statusColor = criticalStatus || 'info';
 
   return (
-    <div className={`kpi-card flex flex-col justify-between ${statusClass}`}>
+    <div 
+      className={`kpi-card flex flex-col justify-between min-h-[120px] ${onClick ? 'cursor-pointer hover:border-blue-300 dark:hover:border-blue-700' : ''} ${statusClass}`}
+      onClick={onClick}
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           {Icon && (
-            <div className="card-icon" style={{ background: `var(--${statusColor}-dim)`, color: `var(--${statusColor})` }}>
+            <div className={`card-icon ${iconColorClass ? iconColorClass : ''}`} style={!iconColorClass ? { background: `var(--${statusColor}-dim)`, color: `var(--${statusColor})` } : {}}>
               <Icon className="h-5 w-5 flex-shrink-0" />
             </div>
           )}

@@ -31,6 +31,7 @@ class DecesRecapScreen extends ConsumerWidget {
     final docLabel  = _docTypeLabel(typeDoc);
 
     Future<void> submit() async {
+      final sm = ScaffoldMessenger.of(context);
       try {
         final id = await ref.read(decesProvider.notifier).submit(
               communeId:    formData['commune_id'] as String,
@@ -48,8 +49,7 @@ class DecesRecapScreen extends ConsumerWidget {
           'label': 'Certificat de décès',
         });
       } catch (e) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        sm.showSnackBar(SnackBar(
           content: Text(e.toString()),
           backgroundColor: AppColors.error,
         ));

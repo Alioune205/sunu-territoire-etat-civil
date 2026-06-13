@@ -1,22 +1,23 @@
 // src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from '@/context/AuthContext';
-import { PrivateRoute } from '@/components/PrivateRoute';
-import { AdminLayout } from '@/layouts/AdminLayout';
-import { Toaster } from '@/components/ui/toaster';
+import { AuthProvider } from '@/context/AuthContext.jsx';
+import { PrivateRoute } from '@/components/PrivateRoute.jsx';
+import { RoleRoute } from '@/components/RoleRoute.jsx';
+import { AdminLayout } from '@/layouts/AdminLayout.jsx';
+import { Toaster } from '@/components/ui/toaster.jsx';
 
 // Pages
-import Login from '@/pages/Login';
-import Dashboard from '@/pages/Dashboard';
-import Dossiers from '@/pages/Dossiers';
-import DossierDetail from '@/pages/DossierDetail';
-import Communes from '@/pages/Communes';
-import Agents from '@/pages/Agents';
-import AuditLogs from '@/pages/AuditLogs';
-import NdiogoyeLogs from '@/pages/NdiogoyeLogs';
-import Notifications from '@/pages/Notifications';
-import Settings from '@/pages/Settings';
-import Transactions from '@/pages/Transactions';
+import Login from '@/pages/Login.jsx';
+import Dashboard from '@/pages/Dashboard.jsx';
+import Dossiers from '@/pages/Dossiers.jsx';
+import DossierDetail from '@/pages/DossierDetail.jsx';
+import Communes from '@/pages/Communes.jsx';
+import Agents from '@/pages/Agents.jsx';
+import AuditLogs from '@/pages/AuditLogs.jsx';
+import NdiogoyeLogs from '@/pages/NdiogoyeLogs.jsx';
+import Notifications from '@/pages/Notifications.jsx';
+import Settings from '@/pages/Settings.jsx';
+import Transactions from '@/pages/Transactions.jsx';
 
 function App() {
   return (
@@ -35,13 +36,21 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/dossiers" element={<Dossiers />} />
               <Route path="/dossiers/:id" element={<DossierDetail />} />
-              <Route path="/communes" element={<Communes />} />
-              <Route path="/agents" element={<Agents />} />
-              <Route path="/audit-logs" element={<AuditLogs />} />
-              <Route path="/ai-logs" element={<NdiogoyeLogs />} />
-              <Route path="/admin/transactions" element={<Transactions />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
+
+              {/* Réservé Admin Civil et Super Admin */}
+              <Route element={<RoleRoute allowedRoles={['civil_admin', 'super_admin']} />}>
+                <Route path="/agents" element={<Agents />} />
+              </Route>
+
+              {/* Réservé Super Admin */}
+              <Route element={<RoleRoute allowedRoles={['super_admin']} />}>
+                <Route path="/communes" element={<Communes />} />
+                <Route path="/audit-logs" element={<AuditLogs />} />
+                <Route path="/ai-logs" element={<NdiogoyeLogs />} />
+                <Route path="/admin/transactions" element={<Transactions />} />
+              </Route>
             </Route>
           </Route>
 

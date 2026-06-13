@@ -81,6 +81,24 @@ class DossierViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         dossier = serializer.save()
+        
+        # --- NOUVEAU : Envoi du signal Temps Réel (WebSockets) ---
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                'admin_dashboard',
+                {
+                    'type': 'dashboard_update',
+                    'message': 'new_dossier',
+                    'data': DossierDetailSerializer(dossier).data
+                }
+            )
+        except Exception as e:
+            print(f"Erreur WebSocket: {e}")
+            
         return success_response(
             data=DossierDetailSerializer(dossier).data,
             message='Dossier créé avec succès.',
@@ -145,7 +163,7 @@ class DossierViewSet(viewsets.ModelViewSet):
             registre = RegistreCivil.objects.get(
                 numero_registre=numero_registre,
                 annee_registre=annee_registre,
-                commune_id=commune_id,
+                commune__code=commune_id,
                 type_acte=type_acte
             )
         except RegistreCivil.DoesNotExist:

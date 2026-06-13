@@ -36,14 +36,14 @@ class NaissanceNotifier extends StateNotifier<NaissanceState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final id = await _ds.submitCertificate({
-        'type': 'naissance',
-        'commune_id': communeId,
-        'beneficiary': {
+        'type': 'birth_certificate',
+        'commune': communeId,
+        'metadata': {
           'nom': nom,
           'date_naissance': dateNaissance.toIso8601String().split('T').first,
           'registre': registre,
         },
-        'for_self': forSelf,
+        'is_for_third_party': !forSelf,
       });
       state = state.copyWith(isLoading: false, dossierId: id);
       return id;

@@ -4,6 +4,7 @@ Serializers for Dossier and DossierComment.
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
+from apps.communes.models import Commune
 from .models import Dossier, DossierComment
 
 User = get_user_model()
@@ -30,6 +31,11 @@ class DossierCommentSerializer(serializers.ModelSerializer):
 
 class DossierCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating a dossier."""
+    commune = serializers.SlugRelatedField(
+        slug_field='code',
+        queryset=Commune.objects.all(),
+        error_messages={'does_not_exist': 'Commune introuvable avec ce code.'}
+    )
 
     class Meta:
         model = Dossier

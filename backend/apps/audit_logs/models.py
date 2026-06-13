@@ -25,6 +25,16 @@ class AuditLog(models.Model):
         DOWNLOAD = 'DOWNLOAD', 'Téléchargement'
         ACCESS_DENIED = 'ACCESS_DENIED', 'Accès refusé'
 
+    class UserType(models.TextChoices):
+        USER = 'USER', 'Utilisateur'
+        SYSTEM = 'SYSTEM', 'Système'
+        ANONYMOUS = 'ANONYMOUS', 'Anonyme'
+
+    class Status(models.TextChoices):
+        SUCCESS = 'SUCCESS', 'Succès'
+        FAILURE = 'FAILURE', 'Échec'
+        ERROR = 'ERROR', 'Erreur'
+
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
@@ -37,6 +47,20 @@ class AuditLog(models.Model):
         blank=True,
         related_name='audit_logs',
         verbose_name='Utilisateur',
+    )
+    user_type = models.CharField(
+        max_length=20,
+        choices=UserType.choices,
+        default=UserType.USER,
+        verbose_name='Type d\'utilisateur',
+        db_index=True,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.SUCCESS,
+        verbose_name='Statut',
+        db_index=True,
     )
     action = models.CharField(
         max_length=20,
@@ -85,14 +109,23 @@ class AuditLog(models.Model):
         return f'[{self.action}] {user_str} — {self.resource_type} ({self.created_at})'
 
     @classmethod
-    def log(cls, user=None, action='', resource_type='', resource_id=None, details=None, ip_address=None):
+    def log(cls, user=None, action='', resource_type='', resource_id=None, details=None, ip_address=None, user_type=None, status=None):
         """
         Convenience method to create an audit log entry.
         Usage: AuditLog.log(user=request.user, action='CREATE', resource_type='dossier', ...)
         """
+        # Determine user_type if not explicitly provided
+        if user_type is None:
+            user_type = cls.UserType.USER if user else cls.UserType.ANONYMOUS
+
+        if status is None:
+            status = cls.Status.SUCCESS
+
         return cls.objects.create(
             user=user,
+            user_type=user_type,
             action=action,
+            status=status,
             resource_type=resource_type,
             resource_id=resource_id,
             details=details or {},

@@ -7,7 +7,7 @@ abstract class AppConstants {
   static const String appVersion = '1.0.0';
 
   // ── API ───────────────────────────────────────────────────────────────────
-  static const String apiBaseUrl = 'http://10.0.2.2:8000/api';
+  static const String apiBaseUrl = 'http://127.0.0.1:8000/api';
   static const Duration apiConnectTimeout = Duration(seconds: 15);
   static const Duration apiReceiveTimeout = Duration(seconds: 30);
   static const Duration apiSendTimeout = Duration(seconds: 30);

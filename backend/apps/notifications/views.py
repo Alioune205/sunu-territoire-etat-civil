@@ -69,6 +69,20 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         tags=['Notifications'],
+        summary='Marquer toutes les notifications comme lues'
+    )
+    @action(detail=False, methods=['post'], url_path='mark-all-read')
+    def mark_all_read(self, request):
+        """Mark all notifications of the user as read."""
+        queryset = self.get_queryset().filter(is_read=False)
+        updated_count = queryset.update(is_read=True)
+        return Response({
+            "success": True,
+            "updated_count": updated_count
+        })
+
+    @extend_schema(
+        tags=['Notifications'],
         summary='Lister les notifications',
         responses={200: NotificationSerializer(many=True)}
     )

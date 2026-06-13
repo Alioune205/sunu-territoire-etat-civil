@@ -1,5 +1,6 @@
 // src/pages/Dashboard.jsx
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDashboard } from '@/hooks/useDashboard';
 import { KPICard } from '@/components/KPICard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +18,9 @@ import {
   Download,
   LineChart as LineChartIcon,
   MapPin,
+  Database,
+  BarChart2,
+  AlertCircle
 } from 'lucide-react';
 import {
   AreaChart,
@@ -35,13 +39,13 @@ import {
   LabelList,
 } from 'recharts';
 
-// Mock données par type — attend DEV 1C (Maïmouna Sall)
+// Mock données par type (triées) — attend DEV 1C (Maïmouna Sall)
 const MOCK_BY_TYPE = [
   { type: 'birth_certificate', type_display: 'Acte de naissance', count: 520 },
-  { type: 'marriage_certificate', type_display: 'Acte de mariage', count: 180 },
-  { type: 'death_certificate', type_display: 'Acte de décès', count: 95 },
   { type: 'residence_certificate', type_display: 'Certificat de résidence', count: 310 },
+  { type: 'marriage_certificate', type_display: 'Acte de mariage', count: 180 },
   { type: 'other', type_display: 'Autre', count: 135 },
+  { type: 'death_certificate', type_display: 'Acte de décès', count: 95 },
 ];
 
 const STATUS_COLORS = {
@@ -62,23 +66,32 @@ const STATUS_LABELS = {
   completed: 'Terminés',
 };
 
-// Custom EmptyState component
-function EmptyState({ icon: Icon, title, subtitle, actionLabel, onAction }) {
+// Custom EmptyState component unifié
+function EmptyState({ variant = 'no-data', title, description, actionLabel, onAction }) {
+  let Icon = Database;
+  let iconColor = 'text-slate-400 dark:text-slate-500';
+  
+  if (variant === 'insufficient') {
+    Icon = BarChart2;
+    iconColor = 'text-amber-500';
+    description = description || "Pas assez de données pour le moment.";
+  } else if (variant === 'error') {
+    Icon = AlertCircle;
+    iconColor = 'text-red-500';
+  }
+
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4 text-center select-none animate-enter">
-      {/* Micro-graphic illustration */}
       <div className="relative mb-5">
-        <div className="absolute inset-0 bg-accent/20 rounded-full blur-xl scale-125"></div>
-        <div className="relative bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 text-primary">
-          {Icon ? <Icon className="h-10 w-10" strokeWidth={1.5} /> : (
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-          )}
+        <div className="absolute inset-0 bg-slate-100 dark:bg-slate-800 rounded-full blur-xl scale-125"></div>
+        <div className={`relative bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 ${iconColor}`}>
+          <Icon className="h-10 w-10" strokeWidth={1.5} />
         </div>
       </div>
       <h3 className="text-[15px] font-semibold text-secondary dark:text-slate-200">{title}</h3>
-      <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1.5 max-w-sm leading-relaxed">{subtitle}</p>
+      <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1.5 max-w-sm leading-relaxed">{description}</p>
       {actionLabel && onAction && (
-        <Button onClick={onAction} className="mt-5 h-9" size="sm">
+        <Button onClick={onAction} className="mt-5 h-9 bg-blue-700 hover:bg-blue-800 text-white" size="sm">
           {actionLabel}
         </Button>
       )}
@@ -176,6 +189,7 @@ const exportCSV = (stats, globalStats) => {
 };
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { stats, globalStats, performance, activity, loading, lastUpdated, refresh } = useDashboard();
 
   // Formater les données du graphique ligne (activité mensuelle)
@@ -238,6 +252,10 @@ export default function Dashboard() {
     const counts = MOCK_BY_TYPE.map((d) => d.count);
     const maxVal = Math.max(...counts, 1);
     return Math.ceil(maxVal / 50) * 50; // arrondi à la 50aine supérieure
+  }, []);
+
+  const totalMockDossiers = useMemo(() => {
+    return MOCK_BY_TYPE.reduce((sum, item) => sum + item.count, 0);
   }, []);
 
   // Custom legend pour le camembert
@@ -319,51 +337,56 @@ export default function Dashboard() {
       {/* Section A — 6 KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <KPICard
-          title="Total Dossiers"
+          title="Total dossiers"
           value={stats?.total_dossiers ?? 0}
           icon={FileText}
-          color="#0D1F3C"
+          iconColorClass="text-blue-700 bg-blue-50 dark:bg-blue-900/20"
           trend={null}
           loading={loading}
+          onClick={() => navigate('/dossiers')}
         />
         <KPICard
           title="En attente"
           value={stats?.status_counts?.submitted ?? 0}
           icon={Clock}
-          color="#E88C38"
+          iconColorClass="text-amber-500 bg-amber-50 dark:bg-amber-900/20"
           criticalStatus="warning"
           trend={null}
           loading={loading}
+          onClick={() => navigate('/dossiers?status=submitted')}
         />
         <KPICard
           title="En vérification"
           value={stats?.status_counts?.in_review ?? 0}
           icon={Eye}
-          color="#2980B9"
+          iconColorClass="text-blue-500 bg-blue-50 dark:bg-blue-900/20"
           loading={loading}
+          onClick={() => navigate('/dossiers?status=in_review')}
         />
         <KPICard
           title="Approuvés"
           value={stats?.status_counts?.approved ?? 0}
           icon={CheckCircle}
-          color="#2D9E6B"
+          iconColorClass="text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
           trend={null}
           loading={loading}
+          onClick={() => navigate('/dossiers?status=approved')}
         />
         <KPICard
           title="Rejetés"
           value={stats?.status_counts?.rejected ?? 0}
           icon={XCircle}
-          color="#C0392B"
+          iconColorClass="text-red-500 bg-red-50 dark:bg-red-900/20"
           criticalStatus="error"
           trend={null}
           loading={loading}
+          onClick={() => navigate('/dossiers?status=rejected')}
         />
         <KPICard
           title="Taux d'approbation"
           value={approbationRateValue}
           icon={TrendingUp}
-          color="#2D9E6B"
+          iconColorClass="text-blue-700 bg-blue-50 dark:bg-blue-900/20"
           loading={loading}
         />
       </div>
@@ -382,9 +405,9 @@ export default function Dashboard() {
               <Skeleton className="h-[300px] w-full rounded-xl" />
             ) : monthlyData.length < 2 ? (
               <EmptyState
-                icon={LineChartIcon}
+                variant="no-data"
                 title="Aucune activité ce mois"
-                subtitle="Créez votre premier dossier pour générer des statistiques détaillées et suivre l'évolution."
+                description="Créez votre premier dossier pour générer des statistiques détaillées et suivre l'évolution."
                 actionLabel="Nouveau dossier"
                 onAction={() => navigate('/dossiers')}
               />
@@ -440,9 +463,9 @@ export default function Dashboard() {
               <Skeleton className="h-[300px] w-full rounded-xl" />
             ) : pieData.length === 0 ? (
               <EmptyState
-                icon={FileText}
+                variant="no-data"
                 title="Aucune donnée de répartition disponible"
-                subtitle="Aucun dossier n'a été enregistré pour le moment."
+                description="Aucun dossier n'a été enregistré pour le moment."
               />
             ) : (
               <div className="relative flex flex-col sm:flex-row items-center justify-around h-[300px] gap-4" aria-label="Graphique circulaire de répartition des dossiers par statut">
@@ -532,7 +555,10 @@ export default function Dashboard() {
                       width={150}
                     />
                     <RechartsTooltip
-                      formatter={(value) => [`${value} dossiers`, 'Nombre']}
+                      formatter={(value) => {
+                        const pct = totalMockDossiers > 0 ? ((value / totalMockDossiers) * 100).toFixed(1) : 0;
+                        return [`${value} dossiers (${pct}%)`, 'Proportion'];
+                      }}
                       contentStyle={{
                         borderRadius: '8px',
                         border: 'none',
@@ -542,11 +568,14 @@ export default function Dashboard() {
                     />
                     <Bar
                       dataKey="count"
-                      fill="#378ADD"
+                      fill="#1D4ED8"
                       radius={[0, 4, 4, 0]}
                       barSize={20}
                       isAnimationActive={true}
                     >
+                      {MOCK_BY_TYPE.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fillOpacity={1 - (index * 0.15)} />
+                      ))}
                       <LabelList
                         dataKey="count"
                         position="right"
@@ -579,9 +608,9 @@ export default function Dashboard() {
               </div>
             ) : topCommunes.length < 2 ? (
               <EmptyState
-                icon={MapPin}
+                variant="insufficient"
                 title="Aucune donnée communale disponible pour cette période."
-                subtitle="Il n'y a pas assez d'activité dans les communes pour établir un classement."
+                description="Il n'y a pas assez d'activité dans les communes pour établir un classement."
               />
             ) : (
               <div className="space-y-4">

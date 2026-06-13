@@ -7,6 +7,7 @@ from pathlib import Path
 from datetime import timedelta
 
 from decouple import config, Csv
+from django.urls import reverse_lazy
 
 # ==============================================================================
 # PATHS
@@ -38,6 +39,13 @@ ALLOWED_HOSTS = config(
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-app-version',
+    'x-platform',
+    'x-device-id',
+]
+
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
@@ -49,6 +57,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ==============================================================================
 
 DJANGO_APPS = [
+    'daphne',
+    'unfold',
+    'unfold.contrib.filters',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -64,6 +75,7 @@ THIRD_PARTY_APPS = [
     'drf_spectacular',
     'django_filters',
     'corsheaders',
+    'channels',
 ]
 
 LOCAL_APPS = [
@@ -83,6 +95,7 @@ LOCAL_APPS = [
     'apps.integrations',
     'apps.services',
     'apps.payments',
+    'apps.etat_civil',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -104,6 +117,28 @@ MIDDLEWARE = [
     'apps.payments.middleware.ReadOnlyForSuperAdminMiddleware',
     'apps.system.middleware.PerformanceMonitoringMiddleware',
 ]
+
+# ==============================================================================
+# CELERY CONFIGURATION
+# ==============================================================================
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/1')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/1')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+# Configuration Celery Beat (Tâches périodiques)
+CELERY_BEAT_SCHEDULE = {
+    'verifier-sla-chaque-15-min': {
+        'task': 'apps.etat_civil.tasks_attribution.task_verifier_sla_et_escalader',
+        'schedule': 900.0,  # 15 minutes
+    },
+    'recalculer-scores-nuit': {
+        'task': 'apps.etat_civil.tasks_attribution.task_recalculer_scores_agents',
+        'schedule': 86400.0,  # Chaque jour
+    },
+}
 
 # ==============================================================================
 # URL CONFIGURATION
@@ -137,6 +172,33 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
+
+# ==============================================================================
+# CACHING (Redis)
+# ==============================================================================
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
+
+# ==============================================================================
+# CHANNELS (WebSockets)
+# ==============================================================================
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [(config('REDIS_HOST', default='127.0.0.1'), config('REDIS_PORT', default=6379, cast=int))],
+        },
+    },
+}
 
 PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
@@ -226,6 +288,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',
@@ -412,3 +475,79 @@ if FIREBASE_CREDENTIALS_PATH:
             f"Warning: Firebase credentials file "
             f"not found at {cred_path}"
         )
+
+# ==============================================================================
+# TWILIO & SENDGRID (DEV 2B)
+# ==============================================================================
+
+TWILIO_ACCOUNT_SID = config('TWILIO_ACCOUNT_SID', default='')
+TWILIO_AUTH_TOKEN = config('TWILIO_AUTH_TOKEN', default='')
+TWILIO_PHONE_NUMBER = config('TWILIO_PHONE_NUMBER', default='')
+
+SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')
+SENDGRID_FROM_EMAIL = config('SENDGRID_FROM_EMAIL', default='no-reply@terangacivil.sn')
+
+# ==============================================================================
+# UNFOLD (Admin Theme)
+# ==============================================================================
+UNFOLD = {
+    "SITE_TITLE": "Teranga Civil",
+    "SITE_HEADER": "Teranga Civil Admin",
+    "SITE_SYMBOL": "stars",  # Material icon
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": True,
+    "COLORS": {
+        "primary": {
+            "50": "238 242 255",
+            "100": "224 231 255",
+            "200": "199 210 254",
+            "300": "165 180 252",
+            "400": "129 140 248",
+            "500": "99 102 241",  # Indigo 500
+            "600": "79 70 229",
+            "700": "67 56 202",
+            "800": "55 48 163",
+            "900": "49 46 129",
+            "950": "30 27 75",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "Gestion Citoyenne",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Dossiers (Demandes)",
+                        "icon": "folder_shared",
+                        "link": reverse_lazy("admin:dossiers_dossier_changelist"),
+                    },
+                    {
+                        "title": "Commentaires Dossiers",
+                        "icon": "forum",
+                        "link": reverse_lazy("admin:dossiers_dossiercomment_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Sécurité & Accès",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Utilisateurs",
+                        "icon": "person",
+                        "link": reverse_lazy("admin:users_user_changelist"),
+                    },
+                    {
+                        "title": "Groupes & Permissions",
+                        "icon": "shield",
+                        "link": reverse_lazy("admin:auth_group_changelist"),
+                    },
+                ],
+            },
+        ],
+    },
+}
+

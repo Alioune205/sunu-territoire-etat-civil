@@ -1,2 +1,3 @@
-/// Mettre kMockMode = false pour connecter le vrai backend
-const bool kMockMode = true;
+/// Mode de simulation global
+/// Passer à `false` pour se connecter au véritable backend Django.
+const bool kMockMode = false;

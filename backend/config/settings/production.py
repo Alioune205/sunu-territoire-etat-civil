@@ -48,6 +48,11 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
+# Nginx reverse proxy support
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+
 # ==============================================================================
 # RENDERERS — JSON only in production
 # ==============================================================================
@@ -55,3 +60,26 @@ X_FRAME_OPTIONS = 'DENY'
 REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = (
     'rest_framework.renderers.JSONRenderer',
 )
+
+# ==============================================================================
+# CACHING & WEBSOCKETS (Redis for Production)
+# ==============================================================================
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [config('REDIS_URL', default='redis://127.0.0.1:6379/1')],
+        },
+    },
+}

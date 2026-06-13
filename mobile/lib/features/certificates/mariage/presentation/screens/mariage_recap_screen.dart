@@ -34,6 +34,7 @@ class MariageRecapScreen extends ConsumerWidget {
     final docTypeLabel   = typeDoc == 'extrait' ? 'Extrait de naissance' : 'Pièce d\'identité';
 
     Future<void> submit() async {
+      final sm = ScaffoldMessenger.of(context);
       try {
         final id = await ref.read(mariageProvider.notifier).submit(
               communeId:        formData['commune_id'] as String,
@@ -50,8 +51,7 @@ class MariageRecapScreen extends ConsumerWidget {
           'label': 'Certificat de mariage',
         });
       } catch (e) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        sm.showSnackBar(SnackBar(
           content: Text(e.toString()),
           backgroundColor: AppColors.error,
         ));

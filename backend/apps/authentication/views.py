@@ -200,20 +200,14 @@ class SendOTPView(GenericAPIView):
         OTPCode.objects.create(identifier=identifier, code=code, expires_at=expires_at)
         
         if '@' in identifier:
-            from django.core.mail import send_mail
-            from django.conf import settings
-            try:
-                send_mail(
-                    subject="Code de vérification — TERANGA CIVIL",
-                    message=f"Votre code de vérification OTP est : {code}. Il expire dans 10 minutes.",
-                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@terangacivil.sn'),
-                    recipient_list=[identifier],
-                    fail_silently=False,
-                )
-            except Exception as e:
-                print(f"Erreur d'envoi d'email SMTP : {e}")
+            from apps.services.communication import SendGridEmailService
+            email_service = SendGridEmailService()
+            html_content = f"<h3>Code de vérification — TERANGA CIVIL</h3><p>Votre code de vérification OTP est : <strong>{code}</strong>.</p><p>Il expire dans 10 minutes.</p>"
+            email_service.send_email(to_email=identifier, subject="Code de vérification — TERANGA CIVIL", html_content=html_content)
         else:
-            print(f"\n{'='*40}\n[SIMULATION SMS OTP] Code pour {identifier} : {code}\n{'='*40}\n")
+            from apps.services.communication import TwilioSMSService
+            sms_service = TwilioSMSService()
+            sms_service.send_sms(to_phone=identifier, message=f"TERANGA CIVIL: Votre code de vérification OTP est {code}. Valide 10 minutes.")
 
         return success_response(message='Code OTP envoyé avec succès.')
 
@@ -365,21 +359,11 @@ class SuperAdminOTPRequestView(GenericAPIView):
             expires_at=expires_at
         )
 
-        # Envoyer l'email
-        try:
-            send_mail(
-                subject="Code de validation — Teranga Civil Super Admin",
-                message=f"Votre code de vérification OTP est : {otp}. Il expire dans 10 minutes.",
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@terangacivil.sn'),
-                recipient_list=[email],
-                fail_silently=False,
-            )
-        except Exception as e:
-            # En développement, ne pas bloquer si SMTP n'est pas configuré
-            print(f"Erreur d'envoi d'email SMTP : {e}")
-
-        # Afficher en console pour tests
-        print(f"\n{'='*50}\n[SIMULATION OTP SUPER ADMIN] Code pour {email} : {otp}\n{'='*50}\n")
+        # Envoyer l'email via SendGrid
+        from apps.services.communication import SendGridEmailService
+        email_service = SendGridEmailService()
+        html_content = f"<h3>Code de validation — Teranga Civil Super Admin</h3><p>Votre code de vérification OTP est : <strong>{otp}</strong>.</p><p>Il expire dans 10 minutes.</p>"
+        email_service.send_email(to_email=email, subject="Code de validation — Teranga Civil Super Admin", html_content=html_content)
 
         # Incrémenter le limiteur
         cache.set(request_key, request_count + 1, timeout=3600) # 1 heure

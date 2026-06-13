@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/errors/exceptions.dart';
 
@@ -11,16 +12,25 @@ class NaissanceRemoteDatasource {
   /// TODO prod : utiliser MultipartFile pour envoyer la vraie image
   Future<Map<String, dynamic>> extractOcr(String imagePath) async {
     try {
-      // En production, envoyer l'image en multipart :
-      // final formData = FormData.fromMap({
-      //   'image': await MultipartFile.fromFile(imagePath, filename: 'extrait.jpg'),
-      // });
-      // final res = await client.post('/ai/ocr/extract/', data: formData);
+      FormData formData;
+      if (kIsWeb) {
+        // Sur le web, le chemin est une URL (blob:http://...)
+        // On récupère les bytes via Dio
+        final fileRes = await Dio().get<List<int>>(
+          imagePath,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        formData = FormData.fromMap({
+          'image': MultipartFile.fromBytes(fileRes.data!, filename: 'extrait.jpg'),
+        });
+      } else {
+        // Sur mobile, on utilise le chemin physique
+        formData = FormData.fromMap({
+          'image': await MultipartFile.fromFile(imagePath, filename: 'extrait.jpg'),
+        });
+      }
 
-      // En mode mock : simple POST sans fichier
-      final res = await client.post('/ai/ocr/extract/', data: {
-        'image_path': imagePath,
-      });
+      final res = await client.post('/ai/ocr/extract/', data: formData);
 
       if (res.statusCode == 200 && res.data != null) {
         final data = res.data as Map<String, dynamic>;

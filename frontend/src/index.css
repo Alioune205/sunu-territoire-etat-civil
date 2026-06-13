@@ -130,8 +130,6 @@
   .kpi-card-label {
     font-size: 13px;
     color: var(--text-300);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
     font-weight: 500;
   }
 

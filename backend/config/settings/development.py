@@ -54,6 +54,25 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
     'anon': '1000/hour',
     'user': '10000/hour',
+    'login': '100/minute', # Relaxed for dev
+    'otp': '100/minute',   # Relaxed for dev
+}
+
+# ==============================================================================
+# CACHING & WEBSOCKETS (Local Memory for Windows Dev)
+# ==============================================================================
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
 }
 
 # ==============================================================================

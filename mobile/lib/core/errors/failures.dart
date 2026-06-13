@@ -4,7 +4,7 @@ abstract class Failure {
   const Failure({required this.message, this.code});
 
   @override
-  String toString() => 'Failure(message: $message, code: $code)';
+  String toString() => message;
 }
 
 // ── Réseau & API ─────────────────────────────────────────────────────────────
