@@ -1,8 +1,9 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 from apps.etat_civil.models_attribution import ProfilAgent, AttributionDossier, JournalAttribution
 
 @admin.register(ProfilAgent)
-class ProfilAgentAdmin(admin.ModelAdmin):
+class ProfilAgentAdmin(ModelAdmin):
     list_display = ('user', 'statut_actuel', 'charge_actuelle', 'capacite_maximale', 'score_performance_global', 'est_disponible')
     list_filter = ('statut_actuel',)
     search_fields = ('user__email', 'user__first_name', 'user__last_name')
@@ -14,7 +15,7 @@ class ProfilAgentAdmin(admin.ModelAdmin):
     est_disponible.short_description = 'Disponible ?'
 
 @admin.register(AttributionDossier)
-class AttributionDossierAdmin(admin.ModelAdmin):
+class AttributionDossierAdmin(ModelAdmin):
     list_display = ('dossier', 'agent', 'statut', 'niveau_priorite', 'date_limite_sla', 'est_en_retard')
     list_filter = ('statut', 'niveau_priorite')
     search_fields = ('dossier__reference', 'agent__user__email')
@@ -26,7 +27,7 @@ class AttributionDossierAdmin(admin.ModelAdmin):
     est_en_retard.short_description = 'En retard ?'
 
 @admin.register(JournalAttribution)
-class JournalAttributionAdmin(admin.ModelAdmin):
+class JournalAttributionAdmin(ModelAdmin):
     list_display = ('dossier', 'action', 'agent_concerne', 'created_at')
     list_filter = ('action',)
     search_fields = ('dossier__reference', 'motif_detaille')

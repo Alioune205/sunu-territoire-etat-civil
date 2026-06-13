@@ -3,25 +3,28 @@ Admin configuration for Dossier and DossierComment.
 """
 import json
 from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline
+from unfold.decorators import display
 from django.utils.html import format_html
 from django.utils import timezone
 from .models import Dossier, DossierComment
 
 
-class DossierCommentInline(admin.TabularInline):
+class DossierCommentInline(TabularInline):
     model = DossierComment
     extra = 0
     readonly_fields = ('author', 'content', 'created_at')
 
 
 @admin.register(Dossier)
-class DossierAdmin(admin.ModelAdmin):
-    list_display = ('reference', 'type', 'status', 'citizen', 'commune', 'assigned_agent', 'created_at')
+class DossierAdmin(ModelAdmin):
+    list_display = ('reference', 'type', 'display_status', 'citizen', 'commune', 'assigned_agent', 'created_at')
     list_filter = ('type', 'status', 'commune')
     search_fields = ('reference', 'citizen__email', 'citizen__first_name', 'citizen__last_name', 'third_party_cni')
     readonly_fields = ('reference', 'created_at', 'updated_at', 'submitted_at', 'reviewed_at', 'completed_at', 'formatted_metadata')
     inlines = [DossierCommentInline]
     ordering = ('-created_at',)
+    list_fullwidth = True
     
     actions = ['mark_as_in_review']
 
@@ -48,10 +51,24 @@ class DossierAdmin(admin.ModelAdmin):
             return "Aucune métadonnée"
         try:
             formatted_json = json.dumps(obj.metadata, indent=4, ensure_ascii=False)
-            return format_html('<pre style="background-color: #f8f9fa; padding: 10px; border-radius: 5px;">{}</pre>', formatted_json)
+            return format_html('<pre style="background-color: #1e1e1e; color: #d4d4d4; padding: 10px; border-radius: 5px;">{}</pre>', formatted_json)
         except Exception:
             return str(obj.metadata)
     formatted_metadata.short_description = 'Métadonnées (Vue structurée)'
+
+    @display(
+        description="Statut",
+        label={
+            "DRAFT": "info",
+            "SUBMITTED": "warning",
+            "IN_REVIEW": "warning",
+            "APPROVED": "success",
+            "REJECTED": "danger",
+            "COMPLETED": "success",
+        },
+    )
+    def display_status(self, obj):
+        return obj.status
 
     @admin.action(description='Marquer les dossiers sélectionnés "En vérification"')
     def mark_as_in_review(self, request, queryset):
@@ -64,7 +81,7 @@ class DossierAdmin(admin.ModelAdmin):
 
 
 @admin.register(DossierComment)
-class DossierCommentAdmin(admin.ModelAdmin):
+class DossierCommentAdmin(ModelAdmin):
     list_display = ('dossier', 'author', 'content', 'created_at')
     list_filter = ('created_at',)
     search_fields = ('dossier__reference', 'author__email', 'content')
