@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button';
 import { processGuichetRapide, downloadPdfWithAuth } from '@/services/citoyenApi';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, ArrowRight, ArrowLeft, Check, Zap, Download, Printer, Search, Users } from 'lucide-react';
+// ─── Formulaires spécialisés pour Résidence et Mariage (Tâche 9 — DEV 1B) ───
+import FormulaireResidence from './FormulaireResidence';
+import FormulaireMariage from './FormulaireMariage';
 
 const DOCUMENT_TYPES = [
   { id: 'birth_certificate', label: 'Extrait de naissance', price: 1000 },
@@ -12,6 +15,9 @@ const DOCUMENT_TYPES = [
   { id: 'residence_certificate', label: 'Certificat résidence', price: 1500 },
   { id: 'other', label: 'Autre document', price: 2000 },
 ];
+
+// Types de documents nécessitant un formulaire dédié avec pièces jointes
+const TYPES_FORMULAIRE_DEDIE = ['residence_certificate', 'marriage_certificate'];
 
 const PAYMENT_MODES = [
   'Espèces', 'Wave', 'Orange Money', 'Free Money', 'Exonéré'
@@ -26,7 +32,7 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
   const [citoyen, setCitoyen] = useState(initialCitoyen);
   // Pour l'étape 1, si le citoyen n'est pas passé en prop, il faudrait implémenter la recherche.
   // Pour la concision de cet exemple, on suppose que l'utilisateur le sélectionnera ou utilisera NouveauCitoyen
-  
+
   const [formData, setFormData] = useState({
     type_document: '',
     motif: '',
@@ -53,6 +59,9 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
     setFormData(prev => ({ ...prev, type_document: doc.id, montant: doc.price }));
   };
 
+  // Vérifie si le type de document sélectionné nécessite un formulaire dédié
+  const estFormulaireDedié = TYPES_FORMULAIRE_DEDIE.includes(formData.type_document);
+
   const handleNext = () => {
     if (step === 1 && !citoyen) {
       toast({ title: "Erreur", description: "Veuillez sélectionner un citoyen", variant: "destructive" });
@@ -62,7 +71,23 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
       toast({ title: "Erreur", description: "Veuillez sélectionner un type de document", variant: "destructive" });
       return;
     }
+    // Si formulaire dédié sélectionné, aller à l'étape 5 (formulaire spécialisé)
+    if (step === 2 && estFormulaireDedié) {
+      setStep(5);
+      return;
+    }
     setStep(s => s + 1);
+  };
+
+  // Callback de succès pour les formulaires dédiés (Résidence / Mariage)
+  const handleFormulaireDediéSuccess = (result) => {
+    setResult(result);
+    setStep(4);
+    toast({
+      title: "Succès",
+      description: "La demande a été enregistrée avec succès.",
+      className: "bg-emerald-50 text-emerald-900 border-emerald-200"
+    });
   };
 
   const downloadPdfForce = async (pdfUrl, ref) => {
@@ -92,7 +117,7 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
       toast({ title: "Erreur", description: "Veuillez choisir un mode de paiement", variant: "destructive" });
       return;
     }
-    
+
     setLoading(true);
     try {
       const res = await processGuichetRapide(citoyen.id, {
@@ -108,12 +133,12 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
         description: "Le document a été généré avec succès",
         className: "bg-emerald-50 text-emerald-900 border-emerald-200"
       });
-      
+
       // Auto download
       if (res.pdf_url) {
-         downloadPdfForce(res.pdf_url, res.reference);
+        downloadPdfForce(res.pdf_url, res.reference);
       }
-      
+
     } catch (error) {
       let errorMessage = "Erreur lors du traitement";
       if (error.response?.data) {
@@ -123,7 +148,7 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
           errorMessage = error.response.data.detail;
         }
       }
-      
+
       toast({
         title: "Erreur",
         description: errorMessage,
@@ -144,7 +169,7 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
       });
       const blob = await downloadPdfWithAuth(result.pdf_url);
       const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-      
+
       // Utilisation d'un lien <a> pour forcer l'ouverture/téléchargement et éviter le blocage des popups
       const link = document.createElement('a');
       link.href = url;
@@ -153,10 +178,10 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       // Nettoyage de l'URL pour libérer la mémoire (optionnel, mais recommandé)
       setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-      
+
     } catch (error) {
       console.error("Erreur téléchargement PDF:", error);
       toast({
@@ -182,20 +207,23 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
                 <div>
                   <DialogTitle className="text-xl font-bold text-text-100 font-jakarta">Guichet Rapide</DialogTitle>
                   <p className="text-sm text-text-400 mt-1">
-                    Étape {step} sur 3 : {step === 1 ? 'Identification' : step === 2 ? 'Document' : 'Paiement'}
+                    {step === 5
+                      ? `Formulaire : ${formData.type_document === 'residence_certificate' ? 'Certificat de Résidence' : 'Extrait de Mariage'}`
+                      : `Étape ${step} sur 3 : ${step === 1 ? 'Identification' : step === 2 ? 'Document' : 'Paiement'}`
+                    }
                   </p>
                 </div>
               </div>
-              
+
               <div className="w-full h-1.5 bg-layer-3 rounded-full mt-4 overflow-hidden">
-                <div 
-                  className="h-full bg-emerald-500 transition-all duration-300 ease-in-out" 
-                  style={{ width: `${(step / 3) * 100}%` }}
+                <div
+                  className="h-full bg-emerald-500 transition-all duration-300 ease-in-out"
+                  style={{ width: step === 5 ? '100%' : `${(step / 3) * 100}%` }}
                 />
               </div>
             </DialogHeader>
 
-            <div className="p-6 min-h-[300px]">
+            <div className={`p-6 ${step === 5 ? 'max-h-[70vh] overflow-y-auto' : 'min-h-[300px]'}`}>
               {step === 1 && (
                 <div className="space-y-6">
                   {citoyen ? (
@@ -229,11 +257,10 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
                       <div
                         key={doc.id}
                         onClick={() => handleSelectDocument(doc)}
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                          formData.type_document === doc.id
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.type_document === doc.id
                             ? 'border-primary bg-primary/5 shadow-sm'
                             : 'border-border-strong bg-layer-2 hover:border-primary/50'
-                        }`}
+                          }`}
                       >
                         <h4 className={`font-medium mb-1 ${formData.type_document === doc.id ? 'text-primary' : 'text-text-100'}`}>
                           {doc.label}
@@ -286,17 +313,16 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
                         <button
                           key={mode}
                           onClick={() => {
-                            setFormData(prev => ({ 
-                              ...prev, 
+                            setFormData(prev => ({
+                              ...prev,
                               paiement_mode: mode,
                               montant: mode === 'Exonéré' ? 0 : DOCUMENT_TYPES.find(d => d.id === formData.type_document)?.price || 0
                             }));
                           }}
-                          className={`px-4 py-2 rounded-lg border font-medium text-sm transition-colors ${
-                            formData.paiement_mode === mode
+                          className={`px-4 py-2 rounded-lg border font-medium text-sm transition-colors ${formData.paiement_mode === mode
                               ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
                               : 'border-border-strong bg-layer-2 text-text-300 hover:bg-layer-3'
-                          }`}
+                            }`}
                         >
                           {mode}
                         </button>
@@ -305,45 +331,63 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
                   </div>
                 </div>
               )}
-            </div>
 
-            <div className="p-4 border-t border-border-subtle bg-layer-2 flex justify-between">
-              {step === 1 ? (
-                <Button variant="ghost" onClick={() => onOpenChange(false)}>Annuler</Button>
-              ) : (
-                <Button variant="outline" onClick={() => setStep(s => s - 1)} className="gap-2">
-                  <ArrowLeft className="h-4 w-4" /> Précédent
-                </Button>
+              {/* Étape 5 — Formulaire dédié (Résidence ou Mariage) */}
+              {step === 5 && formData.type_document === 'residence_certificate' && (
+                <FormulaireResidence
+                  onSuccess={handleFormulaireDediéSuccess}
+                  onCancel={() => setStep(2)}
+                />
               )}
 
-              {step < 3 ? (
-                <Button onClick={handleNext} disabled={step===1 && !citoyen} className="bg-primary text-white hover:bg-primary-hover gap-2">
-                  Suivant <ArrowRight className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button onClick={handleSubmit} disabled={loading} className="bg-emerald-600 text-white hover:bg-emerald-700 gap-2">
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                  Générer et Imprimer
-                </Button>
+              {step === 5 && formData.type_document === 'marriage_certificate' && (
+                <FormulaireMariage
+                  onSuccess={handleFormulaireDediéSuccess}
+                  onCancel={() => setStep(2)}
+                />
               )}
             </div>
+
+            {/* Barre de navigation — masquée à l'étape 5 (le formulaire dédié a sa propre barre) */}
+            {step !== 5 && (
+              <div className="p-4 border-t border-border-subtle bg-layer-2 flex justify-between">
+                {step === 1 ? (
+                  <Button variant="ghost" onClick={() => onOpenChange(false)}>Annuler</Button>
+                ) : (
+                  <Button variant="outline" onClick={() => setStep(s => s - 1)} className="gap-2">
+                    <ArrowLeft className="h-4 w-4" /> Précédent
+                  </Button>
+                )}
+
+                {step < 3 ? (
+                  <Button onClick={handleNext} disabled={step === 1 && !citoyen} className="bg-primary text-white hover:bg-primary-hover gap-2">
+                    Suivant <ArrowRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button onClick={handleSubmit} disabled={loading} className="bg-emerald-600 text-white hover:bg-emerald-700 gap-2">
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    Générer et Imprimer
+                  </Button>
+                )}
+              </div>
+            )}
           </>
         ) : (
           <div className="p-10 text-center flex flex-col items-center">
             <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-6">
               <Check className="h-10 w-10 text-emerald-500" />
             </div>
-            
+
             <h2 className="text-2xl font-bold text-text-100 font-jakarta mb-2">Document généré avec succès !</h2>
             <p className="text-text-400 mb-6">Le document a été validé et est prêt à être imprimé.</p>
-            
+
             <div className="bg-layer-2 border border-border-strong rounded-xl p-6 w-full max-w-sm mb-8">
               <p className="text-sm text-text-400 uppercase tracking-wider font-semibold mb-1">Référence</p>
               <p className="text-3xl font-mono font-bold text-text-100">{result?.reference}</p>
             </div>
-            
+
             <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md">
-              <Button 
+              <Button
                 onClick={handleDownloadPdf}
                 disabled={loading}
                 className="flex-1 bg-primary text-white hover:bg-primary-hover"
@@ -351,15 +395,15 @@ export default function GuichetRapide({ open, onOpenChange, initialCitoyen = nul
                 <Download className="h-4 w-4 mr-2" />
                 Télécharger PDF
               </Button>
-              <Button 
-                onClick={() => window.print()} 
+              <Button
+                onClick={() => window.print()}
                 className="flex-1 bg-layer-3 text-text-100 border border-border-strong hover:bg-layer-4"
               >
                 <Printer className="h-4 w-4 mr-2" />
                 Imprimer
               </Button>
             </div>
-            
+
             <Button variant="ghost" onClick={() => onOpenChange(false)} className="mt-6 text-text-400">
               Fermer le guichet
             </Button>
