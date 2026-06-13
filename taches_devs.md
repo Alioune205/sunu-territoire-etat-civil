@@ -51,8 +51,12 @@ Afin de mieux équilibrer la charge, les tâches initialement prévues pour le B
 > **Rôle :** Sécurité, intégrations externes et gestion du temps réel.
 
 **Tâches :**
-1. **Intégration réelle des fournisseurs SMS** : Remplacer les logs mockés par de vraies API (Twilio, Orange, etc.) pour les SMS. (Les emails sont déjà gérés).
+1. ~~**Intégration réelle des fournisseurs SMS** : Remplacer les logs mockés par de vraies API (Twilio, Orange, etc.) pour les SMS. (Les emails sont déjà gérés).~~ ✅ **FAIT**
 2. ~~**WebSockets (Django Channels)** : Mise à jour en direct des Dashboards et de l'App Flutter sans polling.~~ ✅ **FAIT**
+3. ~~**Tests Unitaires QA (Tâche 10)** : Validation des règles métiers d'Ibrahima et vérification de la génération sans erreur des PDF de Pape (Résidence, Décès, Mariage).~~ ✅ **FAIT**
+4. ~~**Django Admin (Tâche 11)** : Mise à jour du Super Admin pour la gestion des 3 nouveaux dossiers avec affichage JSON avancé.~~ ✅ **FAIT**
+
+*(Toutes les tâches de DEV 2B sont officiellement terminées ! 🎉)*
 
 ### 🔔 DEV 1C — Maïmouna Sall · Backend (Optimisations & Notifications)
 > **Rôle :** En plus des notifications, du dashboard de stats et de l'export CSV, tu récupères une partie de l'optimisation.

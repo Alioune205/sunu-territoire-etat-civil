@@ -230,10 +230,27 @@ def _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
 
     # ======== TITRE DU DOCUMENT ========
     y -= 1.2 * cm
-    type_display = dossier.get_type_display().upper()
     p.setFillColor(NOIR)
     p.setFont("Helvetica-Bold", 18)
-    p.drawCentredString(width / 2, y, "EXTRAIT DU REGISTRE DES ACTES DE NAISSANCE")
+    
+    # Dynamic title and cert text mapping
+    if dossier.type == 'birth_certificate':
+        title = "EXTRAIT DU REGISTRE DES ACTES DE NAISSANCE"
+        cert_text = "Extrait certifié conforme aux indications du registre des naissances."
+    elif dossier.type == 'marriage_certificate':
+        title = "EXTRAIT DU REGISTRE DES ACTES DE MARIAGE"
+        cert_text = "Extrait certifié conforme aux indications du registre des mariages."
+    elif dossier.type == 'death_certificate':
+        title = "CERTIFICAT DE DÉCÈS"
+        cert_text = "Certificat délivré conformément aux déclarations enregistrées."
+    elif dossier.type == 'residence_certificate':
+        title = "CERTIFICAT DE RÉSIDENCE"
+        cert_text = "Certificat délivré sur la foi des déclarations de l'intéressé."
+    else:
+        title = "DOCUMENT ADMINISTRATIF"
+        cert_text = "Document officiel généré électroniquement."
+
+    p.drawCentredString(width / 2, y, title)
     
     y -= 0.6 * cm
     p.setFont("Helvetica", 10)
@@ -280,18 +297,37 @@ def _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
         ("Année Registre", str(metadata.get('annee_registre', 'N/A')), "Numéro Registre", str(metadata.get('numero_registre', 'N/A'))),
     ])
 
-    # --- Infos Enfant ---
-    y = draw_section("Informations de l'Enfant", y, [
-        ("Prénoms", metadata.get('prenoms_enfant', 'N/A'), "Nom", metadata.get('nom_enfant', 'N/A')),
-        ("Né(e) le", metadata.get('date_naissance_personne', 'N/A'), "Heure", metadata.get('heure_naissance', 'Non précisée')),
-        ("Lieu", metadata.get('lieu_naissance', 'N/A'), "Sexe", metadata.get('sexe', 'N/A')),
-    ])
-
-    # --- Infos Parents ---
-    y = draw_section("Informations des Parents", y, [
-        ("Prénom Père", metadata.get('prenom_pere', 'N/A'), "", ""),
-        ("Prénoms Mère", metadata.get('prenom_mere', 'N/A'), "Nom Mère", metadata.get('nom_mere', 'N/A')),
-    ])
+    # --- Dynamic Body Sections ---
+    if dossier.type == 'birth_certificate':
+        y = draw_section("Informations de l'Enfant", y, [
+            ("Prénoms", metadata.get('prenoms_enfant', 'N/A'), "Nom", metadata.get('nom_enfant', 'N/A')),
+            ("Né(e) le", metadata.get('date_naissance_personne', 'N/A'), "Heure", metadata.get('heure_naissance', 'Non précisée')),
+            ("Lieu", metadata.get('lieu_naissance', 'N/A'), "Sexe", metadata.get('sexe', 'N/A')),
+        ])
+        y = draw_section("Informations des Parents", y, [
+            ("Prénom Père", metadata.get('prenom_pere', 'N/A'), "", ""),
+            ("Prénoms Mère", metadata.get('prenom_mere', 'N/A'), "Nom Mère", metadata.get('nom_mere', 'N/A')),
+        ])
+    elif dossier.type == 'marriage_certificate':
+        y = draw_section("Informations sur le Mariage", y, [
+            ("Lieu Célébration", metadata.get('lieu_mariage', 'N/A'), "Date", metadata.get('date_mariage', 'N/A')),
+            ("Régime Matrimonial", metadata.get('regime_matrimonial', 'N/A'), "Option Poly.", metadata.get('option_polygamie', 'N/A')),
+        ])
+        y = draw_section("Informations des Époux", y, [
+            ("Époux(se) 1", metadata.get('epoux_1_nom_complet', 'N/A'), "CNI", metadata.get('epoux_1_cni', 'N/A')),
+            ("Époux(se) 2", metadata.get('epoux_2_nom_complet', 'N/A'), "CNI", metadata.get('epoux_2_cni', 'N/A')),
+        ])
+    elif dossier.type == 'death_certificate':
+        y = draw_section("Informations du Défunt", y, [
+            ("Prénoms", metadata.get('prenoms_defunt', 'N/A'), "Nom", metadata.get('nom_defunt', 'N/A')),
+            ("Date de Décès", metadata.get('date_deces', 'N/A'), "Lieu", metadata.get('lieu_deces', 'N/A')),
+            ("Profession", metadata.get('profession_defunt', 'N/A'), "Domicile", metadata.get('domicile_defunt', 'N/A')),
+        ])
+    elif dossier.type == 'residence_certificate':
+        y = draw_section("Informations du Demandeur", y, [
+            ("Prénoms", metadata.get('prenoms_demandeur', citizen.first_name), "Nom", metadata.get('nom_demandeur', citizen.last_name)),
+            ("Adresse Exacte", metadata.get('adresse_residence', 'N/A'), "Profession", metadata.get('profession_demandeur', 'N/A')),
+        ])
 
     # --- Jugement Supplétif ---
     if metadata.get('est_jugement_suppletif'):
@@ -304,7 +340,7 @@ def _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
     y -= 0.5 * cm
     p.setFont("Helvetica-Oblique", 9)
     p.setFillColor(GRIS)
-    p.drawCentredString(width / 2, y, "Extrait certifié conforme aux indications du registre des naissances.")
+    p.drawCentredString(width / 2, y, cert_text)
     
     y -= 0.6 * cm
     date_str = dossier.completed_at.strftime('%d/%m/%Y') if dossier.completed_at else 'N/A'
