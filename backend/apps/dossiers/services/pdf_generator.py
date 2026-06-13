@@ -25,6 +25,34 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 import hashlib
 
+def _draw_secure_timbre(p, x, y, reference):
+    from reportlab.lib.colors import HexColor
+    from reportlab.lib.units import cm
+    VERT = HexColor('#00853F')
+    ROUGE = HexColor('#E31B23')
+    NOIR = HexColor('#000000')
+    p.saveState()
+    stamp_width = 3.3 * cm
+    stamp_height = 2.0 * cm
+    p.setFillColor(HexColor('#FFFFF0'))
+    p.setStrokeColor(VERT)
+    p.setLineWidth(1.5)
+    p.roundRect(x, y, stamp_width, stamp_height, 4, stroke=1, fill=1)
+    p.setStrokeColor(HexColor('#E0F0E0'))
+    p.setLineWidth(0.5)
+    for i in range(0, int(stamp_width), 5):
+        p.line(x + i, y, x + i, y + stamp_height)
+    p.setFillColor(VERT)
+    p.setFont("Helvetica-Bold", 6)
+    p.drawCentredString(x + stamp_width / 2, y + 1.5 * cm, "TIMBRE FISCAL ÉLECTRONIQUE")
+    p.setFillColor(ROUGE)
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(x + stamp_width / 2, y + 0.8 * cm, "500 FCFA")
+    p.setFillColor(NOIR)
+    p.setFont("Courier-Bold", 6)
+    p.drawCentredString(x + stamp_width / 2, y + 0.2 * cm, f"Réf: {reference}")
+    p.restoreState()
+
 from django.conf import settings
 from django.core.files.base import ContentFile
 
@@ -184,6 +212,11 @@ def _generate_final_pdf(dossier, officier, timbre_ref, cachet_path,
 def _draw_residence_pdf_content(p, width, height, dossier, officier, timbre_ref,
                                 cachet_path, signature_path, cachet_nominal_path, qr_image_reader):
     """Dessine le certificat de résidence au format A4 Paysage."""
+    from reportlab.platypus import Paragraph
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.colors import HexColor
+
     VERT = HexColor('#00853F')
     NOIR = HexColor('#000000')
     BLEU_FONCE = HexColor('#0F172A')
@@ -205,9 +238,7 @@ def _draw_residence_pdf_content(p, width, height, dossier, officier, timbre_ref,
     y -= 0.5 * cm
     p.setFont("Helvetica-Bold", 11)
     commune_name = dossier.commune.name if dossier.commune else "INCONNUE"
-    p.drawCentredString(5 * cm, y, "COMMUNE D'ARRONDISSEMENT DES")
-    y -= 0.5 * cm
-    p.drawCentredString(5 * cm, y, commune_name.upper())
+    p.drawCentredString(5 * cm, y, f"COMMUNE DE {commune_name.upper()}")
 
     # Titre droit
     p.setFont("Helvetica-Bold", 26)
@@ -233,11 +264,10 @@ def _draw_residence_pdf_content(p, width, height, dossier, officier, timbre_ref,
     quartier = metadata.get('quartier', '')
     date_installation = metadata.get('date_installation', '')
 
-    # --- 4. CORPS DU TEXTE ---
+    # --- CORPS DU TEXTE ---
     TEXT_X = 3 * cm
-    TEXT_Y = height - 11.5 * cm
+    TEXT_Y = height - 8.5 * cm  # On démarre plus haut pour laisser place en bas
     TEXT_W = width - 6 * cm
-    TEXT_H = 5 * cm
 
     style_center = ParagraphStyle(
         name='Center', fontName='Helvetica', fontSize=19, leading=28, alignment=TA_CENTER
@@ -250,100 +280,65 @@ def _draw_residence_pdf_content(p, width, height, dossier, officier, timbre_ref,
     )
     
     para = Paragraph(texte_complet, style_center)
-    para.wrap(TEXT_W, TEXT_H)
-    para.drawOn(p, TEXT_X, TEXT_Y)
-
-    # --- 5. CADRE ETAT CIVIL ---
-    CADRE_W = 8.5 * cm
-    CADRE_H = 4.5 * cm
-    CADRE_X = 2 * cm
-    CADRE_Y = 4 * cm 
-
-    p.setDash([3, 3], 0)
-    p.setLineWidth(1.5)
-    p.setStrokeColor(NOIR)
-    p.roundRect(CADRE_X, CADRE_Y, CADRE_W, CADRE_H, 5, fill=0)
-    p.setDash([], 0)
+    para.wrap(TEXT_W, 10 * cm) # max height
     
-    p.setFont("Helvetica-Bold", 8)
-    p.drawCentredString(CADRE_X + 3.5*cm, CADRE_Y + 3.8*cm, "REPUBLIQUE DU SENEGAL")
-    p.setFont("Helvetica-Bold", 7)
-    p.drawCentredString(CADRE_X + 3.5*cm, CADRE_Y + 3.4*cm, "COMMUNE DE")
-    p.drawCentredString(CADRE_X + 3.5*cm, CADRE_Y + 3.1*cm, commune_name.upper().replace("COMMUNE DE ", "").replace("COMMUNE DES ", ""))
-    p.setFont("Helvetica-Bold", 14)
-    p.drawCentredString(CADRE_X + 3.5*cm, CADRE_Y + 2.4*cm, "ETAT CIVIL")
+    # On dessine le paragraphe, il "descend" depuis TEXT_Y
+    para.drawOn(p, TEXT_X, TEXT_Y - para.height)
+    
+    # Position Y libre après le texte (avec marge de 1.0 cm)
+    y_body = TEXT_Y - para.height - 0.5 * cm
+
+    # ======= LIGNE B : VALIDATION (DROITE) =======
+    # On ancre la ligne B en dessous du texte (y_body)
+    # Mais on s'assure qu'elle ne descend pas trop bas (min 6.0 cm depuis le bas pour que les cachets rentrent)
+    l_b_y = min(y_body, 6.0 * cm) 
+    
+    images_width = 12.0 * cm 
+    start_images_x = width - 2.0 * cm - images_width 
+    
+    from datetime import datetime
+    date_str = dossier.updated_at.strftime("%d/%m/%Y") if dossier.updated_at else datetime.now().strftime("%d/%m/%Y")
+    
+    text_y = l_b_y - 0.5 * cm
+    p.setFont("Helvetica", 10)
+    p.drawCentredString(start_images_x + images_width/2, text_y, f"Fait à {commune_name.capitalize()}, le {date_str}")
     p.setFont("Helvetica-Bold", 10)
-    p.drawString(CADRE_X + 0.5*cm, CADRE_Y + 1*cm, "S/D")
-    p.setDash([1, 2], 0)
-    p.setLineWidth(1)
-    p.line(CADRE_X + 1.5*cm, CADRE_Y + 1*cm, CADRE_X + 3.5*cm, CADRE_Y + 1*cm)
-    p.setDash([], 0)
-    p.drawString(CADRE_X + 4*cm, CADRE_Y + 1*cm, "N°")
-    p.setDash([1, 2], 0)
-    p.line(CADRE_X + 4.5*cm, CADRE_Y + 1*cm, CADRE_X + 6*cm, CADRE_Y + 1*cm)
-    p.setDash([], 0)
+    p.drawCentredString(start_images_x + images_width/2, text_y - 0.4 * cm, officier.full_name if officier else "L'Officier de l'État Civil")
+    p.setFont("Helvetica", 10)
+    p.drawCentredString(start_images_x + images_width/2, text_y - 0.8 * cm, "Officier de l'État Civil")
 
-    # --- 6. TIMBRE FISCAL (INTÉRIEUR DU CADRE) ---
-    TIMBRE_W = 1.5 * cm
-    TIMBRE_H = 2 * cm
-    TIMBRE_X = CADRE_X + CADRE_W - TIMBRE_W - 0.5 * cm
-    TIMBRE_Y = CADRE_Y + CADRE_H - TIMBRE_H - 0.5 * cm
-    _draw_secure_timbre(p, TIMBRE_X, TIMBRE_Y, timbre_ref)
-
-    # --- 7. BLOC SIGNATURE ---
-    SIG_TEXT_W = 8 * cm
-    SIG_TEXT_H = 2.5 * cm
-    SIG_TEXT_X = 14 * cm
-    SIG_TEXT_Y = 6.5 * cm
-
-    p.setFont("Helvetica", 14)
-    p.setFillColor(NOIR)
-    date_str = dossier.updated_at.strftime("%d/%m/%Y") if dossier.updated_at else ""
-    p.drawCentredString(SIG_TEXT_X + SIG_TEXT_W/2, SIG_TEXT_Y + 1.5*cm, f"Fait à {commune_name.capitalize()}, le {date_str}")
-    p.drawCentredString(SIG_TEXT_X + SIG_TEXT_W/2, SIG_TEXT_Y + 0.5*cm, "P. le Maire et P.O")
-    p.drawCentredString(SIG_TEXT_X + SIG_TEXT_W/2, SIG_TEXT_Y, "l'Officier de l'Etat Civil")
-
-    # Image Signature
-    SIG_IMG_W = 4 * cm
-    SIG_IMG_H = 2 * cm
-    SIG_IMG_X = SIG_TEXT_X + SIG_TEXT_W/2 - SIG_IMG_W/2
-    SIG_IMG_Y = SIG_TEXT_Y - SIG_IMG_H - 0.2*cm
+    # Images des cachets, placés SOUS le texte
+    l_b_images_y = text_y - 1.2 * cm - 4.0 * cm
     
-    # Cachet Nominal (à côté de la signature)
-    CACHET_NOM_W = 3.5 * cm
-    CACHET_NOM_H = 1.5 * cm
-    CACHET_NOM_X = SIG_IMG_X - CACHET_NOM_W - 0.2*cm
-    CACHET_NOM_Y = SIG_IMG_Y + 0.2*cm
-    
-    if cachet_nominal_path and os.path.exists(cachet_nominal_path):
-        p.drawImage(ImageReader(cachet_nominal_path), CACHET_NOM_X, CACHET_NOM_Y, width=CACHET_NOM_W, height=CACHET_NOM_H, mask='auto')
-
-    if signature_path and os.path.exists(signature_path):
-        p.drawImage(ImageReader(signature_path), SIG_IMG_X, SIG_IMG_Y, width=SIG_IMG_W, height=SIG_IMG_H, mask='auto')
-    
-    # --- 8. CACHET ROND ---
-    # Doit être à DROITE du bloc signature
-    CACHET_ROND_W = 4.5 * cm
-    CACHET_ROND_H = 4.5 * cm
-    CACHET_ROND_X = SIG_TEXT_X + SIG_TEXT_W + 0.5 * cm
-    CACHET_ROND_Y = SIG_IMG_Y - 0.5*cm
-    
+    c1_x = start_images_x
     if cachet_path and os.path.exists(cachet_path):
-        p.drawImage(ImageReader(cachet_path), CACHET_ROND_X, CACHET_ROND_Y, width=CACHET_ROND_W, height=CACHET_ROND_H, mask='auto')
+        p.drawImage(ImageReader(cachet_path), c1_x, l_b_images_y, width=4.0*cm, height=4.0*cm, mask='auto')
+        
+    sig_w = 3.4 * cm
+    sig_h = 1.5 * cm
+    sig_x = c1_x + 4.0 * cm + 0.3 * cm
+    if signature_path and os.path.exists(signature_path):
+        p.drawImage(ImageReader(signature_path), sig_x, l_b_images_y + 1.25*cm, width=sig_w, height=sig_h, mask='auto')
+        
+    c2_x = sig_x + sig_w + 0.3 * cm
+    if cachet_nominal_path and os.path.exists(cachet_nominal_path):
+        p.drawImage(ImageReader(cachet_nominal_path), c2_x, l_b_images_y, width=4.0*cm, height=4.0*cm, mask='auto')
 
-    # --- 9. QR CODE & TEXTE ---
-    QR_W = 2.5 * cm
-    QR_H = 2.5 * cm
-    QR_X = width / 2 - QR_W / 2
-    QR_Y = 1.5 * cm # 1.5cm marge depuis le bas de page
-    
-    QR_TEXT_Y = QR_Y - 0.5 * cm # Texte sous le QR
+
+    # ======= LIGNE A : VÉRIFICATION (GAUCHE) =======
+    # Placée tout en bas de la page, à gauche
+    l_a_x = 2.0 * cm
+    qr_size = 2.5 * cm
+    qr_y = 1.5 * cm  
     
     if qr_image_reader:
-        p.drawImage(qr_image_reader, QR_X, QR_Y, width=QR_W, height=QR_H)
+        p.drawImage(qr_image_reader, l_a_x, qr_y, width=qr_size, height=qr_size)
     else:
-        # Placeholder fonctionnel pour le test sans API complète
-        hash_content = f"{dossier.reference}{nom_complet}{date_naissance}{commune_name}".encode('utf-8')
+        import hashlib
+        import qrcode
+        from io import BytesIO
+        
+        hash_content = f"{dossier.reference}".encode('utf-8')
         doc_hash = hashlib.sha256(hash_content).hexdigest()
         qr_data = f"https://teranga-civil.sn/verify/{doc_hash}"
         
@@ -354,10 +349,24 @@ def _draw_residence_pdf_content(p, width, height, dossier, officier, timbre_ref,
         qr_buffer = BytesIO()
         img_qr.save(qr_buffer, format="PNG")
         qr_buffer.seek(0)
-        p.drawImage(ImageReader(qr_buffer), QR_X, QR_Y, width=QR_W, height=QR_H)
+        p.drawImage(ImageReader(qr_buffer), l_a_x, qr_y, width=qr_size, height=qr_size)
 
-    p.setFont("Helvetica", 8)
-    p.drawCentredString(width / 2, QR_TEXT_Y + 0.1*cm, "Scannez pour vérifier l'authenticité de ce document")
+    p.setFont("Helvetica", 6)
+    p.drawCentredString(l_a_x + qr_size/2, qr_y - 0.2 * cm, "Scannez pour vérifier")
+    p.drawCentredString(l_a_x + qr_size/2, qr_y - 0.5 * cm, "l'authenticité")
+    p.drawCentredString(l_a_x + qr_size/2, qr_y - 0.8 * cm, f"Réf : {dossier.reference}")
+
+    # Timbre juste à côté du QR
+    timbre_x = l_a_x + qr_size + 0.5 * cm
+    if timbre_ref:
+        _draw_secure_timbre(p, timbre_x, qr_y, timbre_ref)
+        
+    # Mention de validité au-dessus de la Ligne A (sur sa propre ligne, sans chevauchement)
+    # Le QR Code fait 2.5 cm de haut, il s'arrête à Y = 4.0 cm. On place la mention à Y = 4.5 cm.
+    p.setFont("Helvetica-Bold", 10)
+    p.setFillColor(ROUGE)
+    p.drawString(l_a_x, qr_y + qr_size + 0.5 * cm, "Validité : 3 mois à compter de la date de délivrance")
+    p.setFillColor(NOIR)
 
 def _draw_mariage_pdf_content(p, width, height, dossier, officier, timbre_ref,
                               cachet_path, signature_path, cachet_nominal_path, qr_image_reader):
@@ -393,7 +402,7 @@ def _draw_mariage_pdf_content(p, width, height, dossier, officier, timbre_ref,
     p.drawString(14 * cm, height - 2.5 * cm, "Un Peuple - Un But - Une Foi")
 
     # Informations Registre
-    y_reg = height - 6.5 * cm
+    y_reg = height - 6.0 * cm
     p.setFont("Helvetica-Bold", 11)
     p.drawString(2 * cm, y_reg, f"Registre N° {registre_no}")
     
@@ -402,19 +411,19 @@ def _draw_mariage_pdf_content(p, width, height, dossier, officier, timbre_ref,
     p.drawString(2 * cm, y_reg - 1.4 * cm, "Date d'enregistrement non précisée.")
 
     # Titre
-    y_titre = height - 9.5 * cm
+    y_titre = height - 8.5 * cm
     p.setFont("Helvetica-Bold", 16)
     p.drawCentredString(width / 2, y_titre, "CERTIFICAT DE MARIAGE CONSTATÉ")
 
     # Corps du texte
-    y_body = y_titre - 1.5 * cm
+    y_body = y_titre - 1.0 * cm
     
     para_intro = Paragraph(
         f"Nous, <b>{officier_name}</b>, Officier d'État civil du <b>CENTRE D'ÉTAT CIVIL DE {commune_name.upper()}</b>, certifions à tous ceux "
         "qu'il appartiendra que :", style_normal)
     para_intro.wrap(width - 4 * cm, 5 * cm)
     para_intro.drawOn(p, 2 * cm, y_body - para_intro.height)
-    y_body -= para_intro.height + 0.8 * cm
+    y_body -= para_intro.height + 0.3 * cm
 
     # Mari
     mari_nom = metadata.get('nom_epoux', 'Nom non précisé')
@@ -422,8 +431,12 @@ def _draw_mariage_pdf_content(p, width, height, dossier, officier, timbre_ref,
     mari_domicile = metadata.get('domicile_epoux', 'Non précisé')
     mari_date_naiss = metadata.get('date_naissance_epoux', 'Non précisée')
     mari_lieu_naiss = metadata.get('lieu_naissance_epoux', 'Non précisé')
-    mari_pere = metadata.get('prenom_pere_epoux', 'Non précisé')
-    mari_mere = metadata.get('prenom_mere_epoux', 'Non précisé')
+    mari_pere_prenom = metadata.get('prenom_pere_epoux', 'Non précisé')
+    mari_pere_nom = metadata.get('nom_pere_epoux', '')
+    mari_pere = f"{mari_pere_prenom} {mari_pere_nom}".strip()
+    mari_mere_prenom = metadata.get('prenom_mere_epoux', 'Non précisé')
+    mari_mere_nom = metadata.get('nom_mere_epoux', '')
+    mari_mere = f"{mari_mere_prenom} {mari_mere_nom}".strip()
 
     mari_text = (
         f"<b>Monsieur {mari_nom},</b><br/>"
@@ -435,10 +448,10 @@ def _draw_mariage_pdf_content(p, width, height, dossier, officier, timbre_ref,
     para_mari = Paragraph(mari_text, style_normal)
     para_mari.wrap(width - 4 * cm, 5 * cm)
     para_mari.drawOn(p, 2 * cm, y_body - para_mari.height)
-    y_body -= para_mari.height + 0.5 * cm
+    y_body -= para_mari.height + 0.3 * cm
     
     p.drawString(2 * cm, y_body, "Et")
-    y_body -= 0.8 * cm
+    y_body -= 0.4 * cm
 
     # Epouse
     epouse_nom = metadata.get('nom_epouse', 'Nom non précisé')
@@ -446,8 +459,12 @@ def _draw_mariage_pdf_content(p, width, height, dossier, officier, timbre_ref,
     epouse_domicile = metadata.get('domicile_epouse', 'Non précisée')
     epouse_date_naiss = metadata.get('date_naissance_epouse', 'Non précisée')
     epouse_lieu_naiss = metadata.get('lieu_naissance_epouse', 'Non précisé')
-    epouse_pere = metadata.get('prenom_pere_epouse', 'Non précisé')
-    epouse_mere = metadata.get('prenom_mere_epouse', 'Non précisé')
+    epouse_pere_prenom = metadata.get('prenom_pere_epouse', 'Non précisé')
+    epouse_pere_nom = metadata.get('nom_pere_epouse', '')
+    epouse_pere = f"{epouse_pere_prenom} {epouse_pere_nom}".strip()
+    epouse_mere_prenom = metadata.get('prenom_mere_epouse', 'Non précisé')
+    epouse_mere_nom = metadata.get('nom_mere_epouse', '')
+    epouse_mere = f"{epouse_mere_prenom} {epouse_mere_nom}".strip()
 
     epouse_text = (
         f"<b>Mademoiselle {epouse_nom},</b><br/>"
@@ -459,7 +476,7 @@ def _draw_mariage_pdf_content(p, width, height, dossier, officier, timbre_ref,
     para_epouse = Paragraph(epouse_text, style_normal)
     para_epouse.wrap(width - 4 * cm, 5 * cm)
     para_epouse.drawOn(p, 2 * cm, y_body - para_epouse.height)
-    y_body -= para_epouse.height + 0.8 * cm
+    y_body -= para_epouse.height + 0.3 * cm
 
     # Conclusion
     date_marriage = metadata.get('date_marriage', 'Non précisée')
@@ -475,65 +492,74 @@ def _draw_mariage_pdf_content(p, width, height, dossier, officier, timbre_ref,
     para_concl = Paragraph(concl_text, style_normal)
     para_concl.wrap(width - 4 * cm, 5 * cm)
     para_concl.drawOn(p, 2 * cm, y_body - para_concl.height)
-    y_body -= para_concl.height + 1.2 * cm
+    y_body -= para_concl.height + 0.3 * cm
 
-    # ======= RÉORGANISATION EN 5 ZONES SÉPARÉES =======
-    # y_body est la ligne où le texte se termine. 
-    # On place toutes les zones d'authentification en bas (max 4.5 cm de haut)
-    # pour dégager la zone de texte.
-    zone_y = min(1.5 * cm, y_body - 4.5 * cm) 
+    p.setFont("Helvetica", 11)
+    p.drawString(2 * cm, y_body, "En foi de quoi, nous avons délivré le présent certificat pour servir et valoir ce que de droit.")
+    y_body -= 0.6 * cm  # Dégager de l'espace après la ligne
+
+    # ======= NOUVELLE RÉORGANISATION EN 2 LIGNES SUPERPOSÉES =======
+    # LIGNE B (Validation) au-dessus, LIGNE A (Vérification) en dessous.
+    # Pour garantir qu'il n'y ait aucun chevauchement, on calcule la 
+    # hauteur totale requise pour ce grand bloc de pied de page.
+    # On garantit que la zone ne remonte pas sur le texte "En foi de quoi..."
+    zone_y = min(1.5 * cm, y_body - 9.5 * cm) 
+    
+    # === LIGNE A (En bas, alignée à gauche) ===
+    l_a_x = 1.5 * cm
+    qr_size = 2.5 * cm
+    qr_y = zone_y + 0.8 * cm  # On laisse 0.8cm de marge basse pour les textes sous le QR
+    
+    if qr_image_reader:
+        p.drawImage(qr_image_reader, l_a_x, qr_y, width=qr_size, height=qr_size)
+    p.setFont("Helvetica", 6)
+    p.drawCentredString(l_a_x + qr_size/2, qr_y - 0.2 * cm, "Scannez pour vérifier")
+    p.drawCentredString(l_a_x + qr_size/2, qr_y - 0.5 * cm, "l'authenticité")
+    p.drawCentredString(l_a_x + qr_size/2, qr_y - 0.8 * cm, f"Réf : {dossier.reference}")
+
+    # Timbre fiscal "juste à côté du QR code"
+    timbre_x = l_a_x + qr_size + 0.5 * cm
+    if timbre_ref:
+        _draw_secure_timbre(p, timbre_x, qr_y, timbre_ref)
+        
+    # === LIGNE B (Au-dessus de Ligne A, alignée à droite) ===
+    # On la positionne avec un espacement net (0.5 cm) au-dessus du top du QR code
+    l_b_images_y = qr_y + qr_size + 0.5 * cm
+    
+    # Calcul de la largeur totale des cachets pour l'alignement
+    images_width = 12.0 * cm # 4.0 (cachet 1) + 0.3 + 3.4 (sig) + 0.3 + 4.0 (cachet 2) = 12.0 cm
+    start_images_x = width - 1.5 * cm - images_width # Aligné à 1.5 cm de la marge droite
+    
+    # 1. Cachet Commune (Rond)
+    c1_x = start_images_x
+    if cachet_path and os.path.exists(cachet_path):
+        p.drawImage(ImageReader(cachet_path), c1_x, l_b_images_y, width=4.0*cm, height=4.0*cm, mask='auto')
+        
+    # 2. Signature (Au centre)
+    sig_w = 3.4 * cm
+    sig_h = 1.5 * cm
+    sig_x = c1_x + 4.0 * cm + 0.3 * cm
+    if signature_path and os.path.exists(signature_path):
+        p.drawImage(ImageReader(signature_path), sig_x, l_b_images_y + 1.25*cm, width=sig_w, height=sig_h, mask='auto')
+        
+    # 3. Cachet Nominal (Rond)
+    c2_x = sig_x + sig_w + 0.3 * cm
+    if cachet_nominal_path and os.path.exists(cachet_nominal_path):
+        p.drawImage(ImageReader(cachet_nominal_path), c2_x, l_b_images_y, width=4.0*cm, height=4.0*cm, mask='auto')
+
+    # Textes au-dessus des cachets
+    text_y = l_b_images_y + 4.0 * cm + 0.3 * cm # 0.3 cm au-dessus des cachets
     
     from datetime import datetime
     date_str = dossier.updated_at.strftime("%d/%m/%Y") if dossier.updated_at else datetime.now().strftime("%d/%m/%Y")
     
-    # === ZONE 1 : QR Code + Textes ===
-    z1_x = 1.0 * cm
-    qr_size = 2.5 * cm
-    qr_y = zone_y + 0.8 * cm
-    if qr_image_reader:
-        p.drawImage(qr_image_reader, z1_x + 0.5*cm, qr_y, width=qr_size, height=qr_size)
-    p.setFont("Helvetica", 6)
-    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.2 * cm, "Scannez pour vérifier")
-    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.5 * cm, "l'authenticité")
-    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.8 * cm, f"Réf : {dossier.reference}")
-
-    # === ZONE 2 : Timbre Fiscal (Option 1) ===
-    z2_x = z1_x + 3.5 * cm
-    if timbre_ref:
-        _draw_secure_timbre(p, z2_x, zone_y + 0.8 * cm, timbre_ref)
-
-    # === ZONE 3 : Tampon rond (Cachet Communal) ===
-    z3_x = z2_x + 3.5 * cm
-    cachet_y = zone_y + 0.2 * cm
-    if cachet_path and os.path.exists(cachet_path):
-        p.drawImage(ImageReader(cachet_path), z3_x, cachet_y, width=4.0*cm, height=4.0*cm, mask='auto')
-
-    # === ZONE 4 : Texte Officier ===
-    z4_x = z3_x + 4.2 * cm
-    text_y = zone_y + 3.5 * cm
-    p.setFont("Helvetica", 9)
-    p.drawCentredString(z4_x + 1.5*cm, text_y, f"Fait à {commune_name.capitalize()},")
-    p.drawCentredString(z4_x + 1.5*cm, text_y - 0.4*cm, f"le {date_str}")
-    p.setFont("Helvetica-Bold", 9)
-    p.drawCentredString(z4_x + 1.5*cm, text_y - 1.2*cm, officier_name)
-    p.setFont("Helvetica", 9)
-    p.drawCentredString(z4_x + 1.5*cm, text_y - 1.6*cm, "Officier de l'Etat Civil")
-
-    # === ZONE 5 : Tampon Ovale (Nominal) + Signature manuscrite ===
-    z5_x = z4_x + 3.0 * cm
-    # Le tampon nominal
-    cachet_nom_w = 3.5 * cm
-    cachet_nom_h = 1.5 * cm
-    cachet_nom_y = zone_y + 1.8 * cm
-    if cachet_nominal_path and os.path.exists(cachet_nominal_path):
-        p.drawImage(ImageReader(cachet_nominal_path), z5_x, cachet_nom_y, width=cachet_nom_w, height=cachet_nom_h, mask='auto')
-    
-    # La signature EN DESSOUS (ou au-dessus) du tampon nominal pour ne pas chevaucher
-    sig_w = 3.5 * cm
-    sig_h = 1.5 * cm
-    sig_y = cachet_nom_y - sig_h - 0.2*cm
-    if signature_path and os.path.exists(signature_path):
-        p.drawImage(ImageReader(signature_path), z5_x, sig_y, width=sig_w, height=sig_h, mask='auto')
+    # Lignes de texte (centrées par rapport au bloc d'images)
+    p.setFont("Helvetica", 10)
+    p.drawCentredString(start_images_x + images_width/2, text_y + 0.8 * cm, f"Fait à {commune_name.capitalize()}, le {date_str}")
+    p.setFont("Helvetica-Bold", 10)
+    p.drawCentredString(start_images_x + images_width/2, text_y + 0.4 * cm, officier_name)
+    p.setFont("Helvetica", 10)
+    p.drawCentredString(start_images_x + images_width/2, text_y, "Officier de l'État Civil")
 
 
 def _draw_deces_pdf_content(p, width, height, dossier, officier, timbre_ref,
@@ -608,65 +634,75 @@ def _draw_deces_pdf_content(p, width, height, dossier, officier, timbre_ref,
     para_intro.drawOn(p, 4 * cm, y_body - para_intro.height)
     
     # ---------------- CONCLUSION ----------------
-    y_body -= 1.5 * cm
+    y_body -= para_intro.height + 0.5 * cm
     texte_concl = "Le présent certificat est délivré à l'intéressé(e) ou à ses ayants droit pour servir et valoir ce que de droit."
     para_concl = Paragraph(texte_concl, style_normal)
     para_concl.wrap(width - 4 * cm, 5 * cm)
     para_concl.drawOn(p, 2 * cm, y_body - para_concl.height)
-    y_body -= para_concl.height + 0.8 * cm
+    y_body -= para_concl.height + 0.5 * cm
     
-    # ---------------- 5 ZONES DE VALIDATION (Réutilisées) ----------------
-    zone_y = min(1.5 * cm, y_body - 4.5 * cm) 
+    # ======= NOUVELLE RÉORGANISATION EN 2 LIGNES SUPERPOSÉES =======
+    # LIGNE B (Validation) au-dessus, LIGNE A (Vérification) en dessous.
+    # Pour garantir qu'il n'y ait aucun chevauchement, on calcule la 
+    # hauteur totale requise pour ce grand bloc de pied de page.
+    # On garantit que la zone ne remonte pas sur le texte "En foi de quoi..."
+    zone_y = min(1.5 * cm, y_body - 9.5 * cm) 
+    
+    # === LIGNE A (En bas, alignée à gauche) ===
+    l_a_x = 1.5 * cm
+    qr_size = 2.5 * cm
+    qr_y = zone_y + 0.8 * cm  # On laisse 0.8cm de marge basse pour les textes sous le QR
+    
+    if qr_image_reader:
+        p.drawImage(qr_image_reader, l_a_x, qr_y, width=qr_size, height=qr_size)
+    p.setFont("Helvetica", 6)
+    p.drawCentredString(l_a_x + qr_size/2, qr_y - 0.2 * cm, "Scannez pour vérifier")
+    p.drawCentredString(l_a_x + qr_size/2, qr_y - 0.5 * cm, "l'authenticité")
+    p.drawCentredString(l_a_x + qr_size/2, qr_y - 0.8 * cm, f"Réf : {dossier.reference}")
+
+    # Timbre fiscal "juste à côté du QR code"
+    timbre_x = l_a_x + qr_size + 0.5 * cm
+    if timbre_ref:
+        _draw_secure_timbre(p, timbre_x, qr_y, timbre_ref)
+        
+    # === LIGNE B (Au-dessus de Ligne A, alignée à droite) ===
+    # On la positionne avec un espacement net (0.5 cm) au-dessus du top du QR code
+    l_b_images_y = qr_y + qr_size + 0.5 * cm
+    
+    # Calcul de la largeur totale des cachets pour l'alignement
+    images_width = 12.0 * cm # 4.0 (cachet 1) + 0.3 + 3.4 (sig) + 0.3 + 4.0 (cachet 2) = 12.0 cm
+    start_images_x = width - 1.5 * cm - images_width # Aligné à 1.5 cm de la marge droite
+    
+    # 1. Cachet Commune (Rond)
+    c1_x = start_images_x
+    if cachet_path and os.path.exists(cachet_path):
+        p.drawImage(ImageReader(cachet_path), c1_x, l_b_images_y, width=4.0*cm, height=4.0*cm, mask='auto')
+        
+    # 2. Signature (Au centre)
+    sig_w = 3.4 * cm
+    sig_h = 1.5 * cm
+    sig_x = c1_x + 4.0 * cm + 0.3 * cm
+    if signature_path and os.path.exists(signature_path):
+        p.drawImage(ImageReader(signature_path), sig_x, l_b_images_y + 1.25*cm, width=sig_w, height=sig_h, mask='auto')
+        
+    # 3. Cachet Nominal (Rond)
+    c2_x = sig_x + sig_w + 0.3 * cm
+    if cachet_nominal_path and os.path.exists(cachet_nominal_path):
+        p.drawImage(ImageReader(cachet_nominal_path), c2_x, l_b_images_y, width=4.0*cm, height=4.0*cm, mask='auto')
+
+    # Textes au-dessus des cachets
+    text_y = l_b_images_y + 4.0 * cm + 0.3 * cm # 0.3 cm au-dessus des cachets
     
     from datetime import datetime
     date_str = dossier.updated_at.strftime("%d/%m/%Y") if dossier.updated_at else datetime.now().strftime("%d/%m/%Y")
     
-    # ZONE 1 : QR Code + Textes
-    z1_x = 1.0 * cm
-    qr_size = 2.5 * cm
-    qr_y = zone_y + 0.8 * cm
-    if qr_image_reader:
-        p.drawImage(qr_image_reader, z1_x + 0.5*cm, qr_y, width=qr_size, height=qr_size)
-    p.setFont("Helvetica", 6)
-    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.2 * cm, "Scannez pour vérifier")
-    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.5 * cm, "l'authenticité")
-    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.8 * cm, f"Réf : {dossier.reference}")
-
-    # ZONE 2 : Timbre Fiscal
-    z2_x = z1_x + 3.5 * cm
-    if timbre_ref:
-        _draw_secure_timbre(p, z2_x, zone_y + 0.8 * cm, timbre_ref)
-
-    # ZONE 3 : Tampon rond (Cachet Communal)
-    z3_x = z2_x + 3.5 * cm
-    cachet_y = zone_y + 0.2 * cm
-    if cachet_path and os.path.exists(cachet_path):
-        p.drawImage(ImageReader(cachet_path), z3_x, cachet_y, width=4.0*cm, height=4.0*cm, mask='auto')
-
-    # ZONE 4 : Texte Officier
-    z4_x = z3_x + 4.2 * cm
-    text_y = zone_y + 3.5 * cm
-    p.setFont("Helvetica", 9)
-    p.drawCentredString(z4_x + 1.5*cm, text_y, f"Fait à {commune_name.capitalize()},")
-    p.drawCentredString(z4_x + 1.5*cm, text_y - 0.4*cm, f"le {date_str}")
-    p.setFont("Helvetica-Bold", 9)
-    p.drawCentredString(z4_x + 1.5*cm, text_y - 1.2*cm, officier_name)
-    p.setFont("Helvetica", 9)
-    p.drawCentredString(z4_x + 1.5*cm, text_y - 1.6*cm, "Officier de l'Etat Civil")
-
-    # ZONE 5 : Tampon Ovale (Nominal) + Signature manuscrite
-    z5_x = z4_x + 3.0 * cm
-    cachet_nom_w = 3.5 * cm
-    cachet_nom_h = 1.5 * cm
-    cachet_nom_y = zone_y + 1.8 * cm
-    if cachet_nominal_path and os.path.exists(cachet_nominal_path):
-        p.drawImage(ImageReader(cachet_nominal_path), z5_x, cachet_nom_y, width=cachet_nom_w, height=cachet_nom_h, mask='auto')
-    
-    sig_w = 3.5 * cm
-    sig_h = 1.5 * cm
-    sig_y = cachet_nom_y - sig_h - 0.2*cm
-    if signature_path and os.path.exists(signature_path):
-        p.drawImage(ImageReader(signature_path), z5_x, sig_y, width=sig_w, height=sig_h, mask='auto')
+    # Lignes de texte (centrées par rapport au bloc d'images)
+    p.setFont("Helvetica", 10)
+    p.drawCentredString(start_images_x + images_width/2, text_y + 0.8 * cm, f"Fait à {commune_name.capitalize()}, le {date_str}")
+    p.setFont("Helvetica-Bold", 10)
+    p.drawCentredString(start_images_x + images_width/2, text_y + 0.4 * cm, officier_name)
+    p.setFont("Helvetica", 10)
+    p.drawCentredString(start_images_x + images_width/2, text_y, "Officier de l'État Civil")
 
 
 def _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
