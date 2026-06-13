@@ -96,7 +96,18 @@ export default function DossierDetail() {
     prenom_mere: '',
     nom_mere: '',
     annee_registre: '',
-    numero_registre: ''
+    numero_registre: '',
+    // Mariage
+    nom_epoux: '',
+    nom_epouse: '',
+    annee_marriage: '',
+    registre_marriage: '',
+    // Décès
+    nom_defunt: '',
+    date_deces: '',
+    nom_declarant: '',
+    lien_parente: '',
+    registre: ''
   });
 
   useEffect(() => {
@@ -366,26 +377,63 @@ export default function DossierDetail() {
               )}
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="mb-2">
-                <p className="text-xs font-semibold text-primary mb-1 uppercase">L'enfant</p>
-                <InfoRow label="Prénoms" value={dossier.metadata?.prenoms_enfant} />
-                <InfoRow label="Nom" value={dossier.metadata?.nom_enfant || dossier.metadata?.nom} />
-                <InfoRow label="Né(e) le" value={dossier.metadata?.date_naissance_personne || dossier.metadata?.date_naissance} />
-                <InfoRow label="Heure" value={dossier.metadata?.heure_naissance} />
-                <InfoRow label="Lieu" value={dossier.metadata?.lieu_naissance} />
-                <InfoRow label="Sexe" value={dossier.metadata?.sexe} />
-              </div>
-              <div className="mb-2">
-                <p className="text-xs font-semibold text-primary mb-1 uppercase mt-3">Parents</p>
-                <InfoRow label="Prénom du père" value={dossier.metadata?.prenom_pere} />
-                <InfoRow label="Prénoms de la mère" value={dossier.metadata?.prenom_mere} />
-                <InfoRow label="Nom de la mère" value={dossier.metadata?.nom_mere} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-primary mb-1 uppercase mt-3">Registre</p>
-                <InfoRow label="Année" value={dossier.metadata?.annee_registre} />
-                <InfoRow label="Numéro" value={dossier.metadata?.numero_registre || dossier.metadata?.registre} />
-              </div>
+              {dossier.type === 'marriage_certificate' ? (
+                <>
+                  <div className="mb-2">
+                    <p className="text-xs font-semibold text-primary mb-1 uppercase">Époux</p>
+                    <InfoRow label="Nom de l'époux" value={dossier.metadata?.nom_epoux} />
+                  </div>
+                  <div className="mb-2">
+                    <p className="text-xs font-semibold text-primary mb-1 uppercase mt-3">Épouse</p>
+                    <InfoRow label="Nom de l'épouse" value={dossier.metadata?.nom_epouse} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-primary mb-1 uppercase mt-3">Registre</p>
+                    <InfoRow label="Année" value={dossier.metadata?.annee_marriage} />
+                    <InfoRow label="Numéro" value={dossier.metadata?.registre_marriage} />
+                  </div>
+                </>
+              ) : dossier.type === 'death_certificate' ? (
+                <>
+                  <div className="mb-2">
+                    <p className="text-xs font-semibold text-primary mb-1 uppercase">Défunt</p>
+                    <InfoRow label="Nom du défunt" value={dossier.metadata?.nom_defunt} />
+                    <InfoRow label="Date du décès" value={dossier.metadata?.date_deces} />
+                  </div>
+                  <div className="mb-2">
+                    <p className="text-xs font-semibold text-primary mb-1 uppercase mt-3">Déclarant</p>
+                    <InfoRow label="Nom du déclarant" value={dossier.metadata?.nom_declarant} />
+                    <InfoRow label="Lien de parenté" value={dossier.metadata?.lien_parente} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-primary mb-1 uppercase mt-3">Registre</p>
+                    <InfoRow label="Numéro" value={dossier.metadata?.registre} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mb-2">
+                    <p className="text-xs font-semibold text-primary mb-1 uppercase">L'enfant</p>
+                    <InfoRow label="Prénoms" value={dossier.metadata?.prenoms_enfant} />
+                    <InfoRow label="Nom" value={dossier.metadata?.nom_enfant || dossier.metadata?.nom} />
+                    <InfoRow label="Né(e) le" value={dossier.metadata?.date_naissance_personne || dossier.metadata?.date_naissance} />
+                    <InfoRow label="Heure" value={dossier.metadata?.heure_naissance} />
+                    <InfoRow label="Lieu" value={dossier.metadata?.lieu_naissance} />
+                    <InfoRow label="Sexe" value={dossier.metadata?.sexe} />
+                  </div>
+                  <div className="mb-2">
+                    <p className="text-xs font-semibold text-primary mb-1 uppercase mt-3">Parents</p>
+                    <InfoRow label="Prénom du père" value={dossier.metadata?.prenom_pere} />
+                    <InfoRow label="Prénoms de la mère" value={dossier.metadata?.prenom_mere} />
+                    <InfoRow label="Nom de la mère" value={dossier.metadata?.nom_mere} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-primary mb-1 uppercase mt-3">Registre</p>
+                    <InfoRow label="Année" value={dossier.metadata?.annee_registre} />
+                    <InfoRow label="Numéro" value={dossier.metadata?.numero_registre || dossier.metadata?.registre} />
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -642,106 +690,192 @@ export default function DossierDetail() {
           </DialogHeader>
           
           <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1">L'enfant</div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="prenoms_enfant">Prénoms</Label>
-              <Input 
-                id="prenoms_enfant" 
-                value={metadataForm.prenoms_enfant}
-                onChange={(e) => setMetadataForm({...metadataForm, prenoms_enfant: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nom_enfant">Nom</Label>
-              <Input 
-                id="nom_enfant" 
-                value={metadataForm.nom_enfant}
-                onChange={(e) => setMetadataForm({...metadataForm, nom_enfant: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="date_naissance_personne">Date de naissance</Label>
-              <Input 
-                id="date_naissance_personne" 
-                type="date"
-                value={metadataForm.date_naissance_personne}
-                onChange={(e) => setMetadataForm({...metadataForm, date_naissance_personne: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="heure_naissance">Heure de naissance</Label>
-              <Input 
-                id="heure_naissance" 
-                placeholder="ex: 14h30"
-                value={metadataForm.heure_naissance}
-                onChange={(e) => setMetadataForm({...metadataForm, heure_naissance: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lieu_naissance">Lieu de naissance</Label>
-              <Input 
-                id="lieu_naissance" 
-                value={metadataForm.lieu_naissance}
-                onChange={(e) => setMetadataForm({...metadataForm, lieu_naissance: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="sexe">Sexe</Label>
-              <Input 
-                id="sexe" 
-                placeholder="M ou F"
-                value={metadataForm.sexe}
-                onChange={(e) => setMetadataForm({...metadataForm, sexe: e.target.value})}
-              />
-            </div>
+            {dossier.type === 'marriage_certificate' ? (
+              <>
+                <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1">Les Époux</div>
+                <div className="space-y-2">
+                  <Label htmlFor="nom_epoux">Nom de l'époux</Label>
+                  <Input 
+                    id="nom_epoux" 
+                    value={metadataForm.nom_epoux}
+                    onChange={(e) => setMetadataForm({...metadataForm, nom_epoux: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nom_epouse">Nom de l'épouse</Label>
+                  <Input 
+                    id="nom_epouse" 
+                    value={metadataForm.nom_epouse}
+                    onChange={(e) => setMetadataForm({...metadataForm, nom_epouse: e.target.value})}
+                  />
+                </div>
+                <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1 mt-2">Le Registre</div>
+                <div className="space-y-2">
+                  <Label htmlFor="annee_marriage">Année du registre</Label>
+                  <Input 
+                    id="annee_marriage" 
+                    placeholder="ex: 2026"
+                    value={metadataForm.annee_marriage}
+                    onChange={(e) => setMetadataForm({...metadataForm, annee_marriage: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="registre_marriage">Numéro de registre</Label>
+                  <Input 
+                    id="registre_marriage" 
+                    value={metadataForm.registre_marriage}
+                    onChange={(e) => setMetadataForm({...metadataForm, registre_marriage: e.target.value})}
+                  />
+                </div>
+              </>
+            ) : dossier.type === 'death_certificate' ? (
+              <>
+                <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1">Le Défunt</div>
+                <div className="space-y-2">
+                  <Label htmlFor="nom_defunt">Nom du défunt</Label>
+                  <Input 
+                    id="nom_defunt" 
+                    value={metadataForm.nom_defunt}
+                    onChange={(e) => setMetadataForm({...metadataForm, nom_defunt: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="date_deces">Date de décès</Label>
+                  <Input 
+                    id="date_deces" 
+                    type="date"
+                    value={metadataForm.date_deces}
+                    onChange={(e) => setMetadataForm({...metadataForm, date_deces: e.target.value})}
+                  />
+                </div>
+                <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1 mt-2">Le Déclarant</div>
+                <div className="space-y-2">
+                  <Label htmlFor="nom_declarant">Nom du déclarant</Label>
+                  <Input 
+                    id="nom_declarant" 
+                    value={metadataForm.nom_declarant}
+                    onChange={(e) => setMetadataForm({...metadataForm, nom_declarant: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lien_parente">Lien de parenté</Label>
+                  <Input 
+                    id="lien_parente" 
+                    value={metadataForm.lien_parente}
+                    onChange={(e) => setMetadataForm({...metadataForm, lien_parente: e.target.value})}
+                  />
+                </div>
+                <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1 mt-2">Le Registre</div>
+                <div className="space-y-2">
+                  <Label htmlFor="registre">Numéro de registre</Label>
+                  <Input 
+                    id="registre" 
+                    value={metadataForm.registre}
+                    onChange={(e) => setMetadataForm({...metadataForm, registre: e.target.value})}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1">L'enfant</div>
+                <div className="space-y-2">
+                  <Label htmlFor="prenoms_enfant">Prénoms</Label>
+                  <Input 
+                    id="prenoms_enfant" 
+                    value={metadataForm.prenoms_enfant}
+                    onChange={(e) => setMetadataForm({...metadataForm, prenoms_enfant: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nom_enfant">Nom</Label>
+                  <Input 
+                    id="nom_enfant" 
+                    value={metadataForm.nom_enfant}
+                    onChange={(e) => setMetadataForm({...metadataForm, nom_enfant: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="date_naissance_personne">Date de naissance</Label>
+                  <Input 
+                    id="date_naissance_personne" 
+                    type="date"
+                    value={metadataForm.date_naissance_personne}
+                    onChange={(e) => setMetadataForm({...metadataForm, date_naissance_personne: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="heure_naissance">Heure de naissance</Label>
+                  <Input 
+                    id="heure_naissance" 
+                    placeholder="ex: 14h30"
+                    value={metadataForm.heure_naissance}
+                    onChange={(e) => setMetadataForm({...metadataForm, heure_naissance: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lieu_naissance">Lieu de naissance</Label>
+                  <Input 
+                    id="lieu_naissance" 
+                    value={metadataForm.lieu_naissance}
+                    onChange={(e) => setMetadataForm({...metadataForm, lieu_naissance: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sexe">Sexe</Label>
+                  <Input 
+                    id="sexe" 
+                    placeholder="M ou F"
+                    value={metadataForm.sexe}
+                    onChange={(e) => setMetadataForm({...metadataForm, sexe: e.target.value})}
+                  />
+                </div>
 
-            <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1 mt-2">Les Parents</div>
-            
-            <div className="col-span-2 space-y-2">
-              <Label htmlFor="prenom_pere">Prénom du père</Label>
-              <Input 
-                id="prenom_pere" 
-                value={metadataForm.prenom_pere}
-                onChange={(e) => setMetadataForm({...metadataForm, prenom_pere: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="prenom_mere">Prénoms de la mère</Label>
-              <Input 
-                id="prenom_mere" 
-                value={metadataForm.prenom_mere}
-                onChange={(e) => setMetadataForm({...metadataForm, prenom_mere: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nom_mere">Nom de la mère</Label>
-              <Input 
-                id="nom_mere" 
-                value={metadataForm.nom_mere}
-                onChange={(e) => setMetadataForm({...metadataForm, nom_mere: e.target.value})}
-              />
-            </div>
+                <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1 mt-2">Les Parents</div>
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="prenom_pere">Prénom du père</Label>
+                  <Input 
+                    id="prenom_pere" 
+                    value={metadataForm.prenom_pere}
+                    onChange={(e) => setMetadataForm({...metadataForm, prenom_pere: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prenom_mere">Prénoms de la mère</Label>
+                  <Input 
+                    id="prenom_mere" 
+                    value={metadataForm.prenom_mere}
+                    onChange={(e) => setMetadataForm({...metadataForm, prenom_mere: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nom_mere">Nom de la mère</Label>
+                  <Input 
+                    id="nom_mere" 
+                    value={metadataForm.nom_mere}
+                    onChange={(e) => setMetadataForm({...metadataForm, nom_mere: e.target.value})}
+                  />
+                </div>
 
-            <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1 mt-2">Le Registre</div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="annee_registre">Année du registre</Label>
-              <Input 
-                id="annee_registre" 
-                placeholder="ex: 2026"
-                value={metadataForm.annee_registre}
-                onChange={(e) => setMetadataForm({...metadataForm, annee_registre: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="numero_registre">Numéro de registre</Label>
-              <Input 
-                id="numero_registre" 
-                value={metadataForm.numero_registre}
-                onChange={(e) => setMetadataForm({...metadataForm, numero_registre: e.target.value})}
-              />
-            </div>
+                <div className="col-span-2 text-sm font-semibold text-primary uppercase border-b pb-1 mt-2">Le Registre</div>
+                <div className="space-y-2">
+                  <Label htmlFor="annee_registre">Année du registre</Label>
+                  <Input 
+                    id="annee_registre" 
+                    placeholder="ex: 2026"
+                    value={metadataForm.annee_registre}
+                    onChange={(e) => setMetadataForm({...metadataForm, annee_registre: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="numero_registre">Numéro de registre</Label>
+                  <Input 
+                    id="numero_registre" 
+                    value={metadataForm.numero_registre}
+                    onChange={(e) => setMetadataForm({...metadataForm, numero_registre: e.target.value})}
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           <DialogFooter>

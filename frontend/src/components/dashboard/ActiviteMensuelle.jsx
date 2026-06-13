@@ -44,7 +44,7 @@ export function ActiviteMensuelle({ loading, activity }) {
 
   const monthlyData = useMemo(() => {
     if (!activity?.monthly) return [];
-    return activity.monthly.map((item, index) => {
+    return [...activity.monthly].reverse().map((item, index) => {
       const date = new Date(item.date);
       return {
         name: date.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }),

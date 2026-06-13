@@ -123,8 +123,10 @@ class DashboardStatsView(APIView):
 
         # --- NOUVELLES STATISTIQUES ---
         total = total_dossiers
-        dossiers_approuves = get_base_queryset(request.user).filter(status__in=[Dossier.Status.VALIDATED, Dossier.Status.DELIVERED]).count()
-        taux_approbation = round((dossiers_approuves / total) * 100, 1) if total > 0 else 0.0
+        dossiers_approuves = get_base_queryset(request.user).filter(status__in=[Dossier.Status.VALIDATED, Dossier.Status.DELIVERED, Dossier.Status.APPROVED]).count()
+        dossiers_rejetes = get_base_queryset(request.user).filter(status=Dossier.Status.REJECTED).count()
+        total_traites = dossiers_approuves + dossiers_rejetes
+        taux_approbation = round((dossiers_approuves / total_traites) * 100, 1) if total_traites > 0 else None
 
         dossiers_par_type_qs = get_base_queryset(request.user).values('type').annotate(count=Count('id'))
         dossiers_par_type = {item['type']: item['count'] for item in dossiers_par_type_qs}
@@ -190,9 +192,10 @@ class GlobalStatsView(APIView):
             )
         )
         total = stats['total']
+        total_traites = stats['valides'] + stats['rejetes']
         taux = (
-            round((stats['valides'] / total * 100), 2)
-            if total and total > 0 else 0.0
+            round((stats['valides'] / total_traites * 100), 1)
+            if total_traites and total_traites > 0 else None
         )
 
         return success_response({

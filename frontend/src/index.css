@@ -151,6 +151,16 @@
     background: linear-gradient(135deg, var(--warning-dim) 0%, var(--layer-1) 40%);
   }
 
+  .kpi-card.info {
+    border-left: 3px solid var(--info);
+    background: linear-gradient(135deg, var(--info-dim) 0%, var(--layer-1) 40%);
+  }
+
+  .kpi-card.success {
+    border-left: 3px solid var(--success);
+    background: linear-gradient(135deg, var(--success-dim) 0%, var(--layer-1) 40%);
+  }
+
   .kpi-card.error {
     border-left: 3px solid var(--error);
     background: linear-gradient(135deg, var(--error-dim) 0%, var(--layer-1) 40%);

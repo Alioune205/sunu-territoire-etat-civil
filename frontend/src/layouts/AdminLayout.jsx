@@ -40,7 +40,7 @@ export function AdminLayout() {
         <Header setSidebarOpen={setSidebarOpen} unreadCount={unreadCount} />
 
         {/* Page content */}
-        <main className="flex-1 min-h-0 overflow-hidden p-6">
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-6 relative">
           {role === 'super_admin' && location.pathname.includes('/admin/transactions') && (
             <div className="mb-6 flex items-center justify-between p-3 bg-[#FFFBEB] dark:bg-[#F59E0B]/5 border-l-4 border-l-[#F59E0B] border-y border-r border-[#F59E0B]/20 rounded-r-lg shadow-sm animate-enter">
               <div className="flex items-center gap-3">

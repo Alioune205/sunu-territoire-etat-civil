@@ -60,7 +60,7 @@ export default function Dashboard() {
   const approbationRateValue = isDossiersEmpty ? '–' : `${globalStats?.taux_approbation || 0}%`;
 
   return (
-    <div className="h-full flex flex-col overflow-hidden gap-4">
+    <div className="h-full flex flex-col overflow-y-auto overflow-x-hidden gap-4 pb-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
         <div className="space-y-1">
@@ -84,12 +84,12 @@ export default function Dashboard() {
 
       {/* Section A — 6 KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 shrink-0">
-        <KPICard title="Total demandes" value={stats?.total_dossiers ?? 0} icon={FileText} iconColorClass="text-blue-700 bg-blue-50 dark:bg-blue-900/20" loading={loading} onClick={() => navigate('/dossiers')} />
-        <KPICard title="En attente" value={stats?.status_counts?.submitted ?? 0} icon={Clock} iconColorClass="text-amber-500 bg-amber-50 dark:bg-amber-900/20" criticalStatus="warning" loading={loading} onClick={() => navigate('/dossiers?status=submitted')} />
-        <KPICard title="En vérification" value={stats?.status_counts?.in_review ?? 0} icon={Eye} iconColorClass="text-blue-500 bg-blue-50 dark:bg-blue-900/20" loading={loading} onClick={() => navigate('/dossiers?status=in_review')} />
-        <KPICard title="Validés" value={stats?.status_counts?.validated ?? (stats?.status_counts?.approved ?? 0)} icon={CheckCircle} iconColorClass="text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20" loading={loading} onClick={() => navigate('/dossiers?status=validated')} />
+        <KPICard title="Total demandes" value={stats?.total_dossiers ?? 0} icon={FileText} iconColorClass="text-blue-700 bg-blue-50 dark:bg-blue-900/20" criticalStatus="info" loading={loading} onClick={() => navigate('/dossiers')} />
+        <KPICard title="En attente" value={(stats?.status_counts?.submitted ?? 0) + (stats?.status_counts?.draft ?? 0)} icon={Clock} iconColorClass="text-amber-500 bg-amber-50 dark:bg-amber-900/20" criticalStatus="warning" loading={loading} onClick={() => navigate('/dossiers?status=submitted')} />
+        <KPICard title="En traitement" value={(stats?.status_counts?.in_review ?? 0) + (stats?.status_counts?.generated ?? 0)} icon={Eye} iconColorClass="text-blue-500 bg-blue-50 dark:bg-blue-900/20" criticalStatus="info" loading={loading} onClick={() => navigate('/dossiers?status=in_review')} />
+        <KPICard title="Terminés" value={(stats?.status_counts?.validated ?? 0) + (stats?.status_counts?.approved ?? 0) + (stats?.status_counts?.delivered ?? 0) + (stats?.status_counts?.completed ?? 0)} icon={CheckCircle} iconColorClass="text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20" criticalStatus="success" loading={loading} onClick={() => navigate('/dossiers?status=validated')} />
         <KPICard title="Rejetés" value={stats?.status_counts?.rejected ?? 0} icon={XCircle} iconColorClass="text-red-500 bg-red-50 dark:bg-red-900/20" criticalStatus="error" loading={loading} onClick={() => navigate('/dossiers?status=rejected')} />
-        <KPICard title="Taux d'approbation" value={approbationRateValue} icon={TrendingUp} iconColorClass="text-blue-700 bg-blue-50 dark:bg-blue-900/20" loading={loading} />
+        <KPICard title="Taux d'approbation" value={approbationRateValue} icon={TrendingUp} iconColorClass="text-blue-700 bg-blue-50 dark:bg-blue-900/20" criticalStatus="info" loading={loading} />
       </div>
 
       {/* Sections Graphiques */}

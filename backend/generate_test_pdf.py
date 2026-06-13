@@ -1,50 +1,59 @@
-"""
-Script pour générer un PDF de test simulant une CNI sénégalaise.
-Lance : python generate_test_pdf.py
-"""
+﻿import os
+import django
+from io import BytesIO
+from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import cm
+from datetime import datetime
 
-doc = SimpleDocTemplate("test_cni.pdf", pagesize=A4)
-styles = getSampleStyleSheet()
-elements = []
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+django.setup()
 
-# Titre
-title_style = ParagraphStyle('title', fontSize=18, fontName='Helvetica-Bold', alignment=1, spaceAfter=10)
-elements.append(Paragraph("REPUBLIQUE DU SENEGAL", title_style))
-elements.append(Paragraph("CARTE NATIONALE D'IDENTITE CEDEAO", title_style))
-elements.append(Spacer(1, 0.5*cm))
+from apps.dossiers.services.pdf_generator import _draw_residence_pdf_content
 
-# Données CNI
-label_style = ParagraphStyle('label', fontSize=11, fontName='Helvetica-Bold')
-value_style = ParagraphStyle('value', fontSize=12, fontName='Helvetica')
+class MockProfile:
+    date_of_birth = "01/01/1980"
+    place_of_birth = "Dakar"
+    address = "Parcelles Assainies Unité 15"
 
-fields = [
-    ("Prénoms", "MOUSSA"),
-    ("Nom", "DIALLO"),
-    ("Date de naissance", "15/03/1990"),
-    ("Lieu de naissance", "DAKAR"),
-    ("Sexe", "M"),
-    ("Numéro CNI", "2 04 19900315 00042"),
-    ("Date d'expiration", "15/03/2030"),
-    ("Adresse", "15 RUE DE THIONG, DAKAR"),
-    ("Numéro d'électeur", "103456789"),
-    ("NIN", "1 234 1990 00456"),
-]
+class MockCitizen:
+    first_name = "Mamadou"
+    last_name = "Diop"
+    profile = MockProfile()
 
-table_data = [[Paragraph(label, label_style), Paragraph(value, value_style)] for label, value in fields]
+class MockCommune:
+    name = "Parcelles Assainies"
+    region = "Dakar"
 
-table = Table(table_data, colWidths=[6*cm, 10*cm])
-table.setStyle(TableStyle([
-    ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
-    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ('PADDING', (0, 0), (-1, -1), 8),
-    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-]))
-elements.append(table)
+class MockDossier:
+    type = 'residence_certificate'
+    reference = "RES-2026-0001"
+    commune = MockCommune()
+    citizen = MockCitizen()
+    updated_at = datetime.now()
+    metadata = {
+        'prenoms_requerant': 'Mamadou',
+        'nom_requerant': 'Diop',
+        'date_naissance': '12 Mai 1985',
+        'lieu_naissance': 'Dakar',
+        'adresse': 'Villa 123, Unité 15, Parcelles Assainies',
+        'quartier': 'Unité 15',
+        'date_installation': '01 Janvier 2010'
+    }
 
-doc.build(elements)
-print("✅ PDF généré : test_cni.pdf")
+def generate():
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    dossier = MockDossier()
+    
+    _draw_residence_pdf_content(
+        p, width, height, dossier, officier=None, timbre_ref="12345ABC", 
+        cachet_path=None, signature_path=None, cachet_nominal_path=None, qr_image_reader=None
+    )
+    p.showPage()
+    p.save()
+    with open('certificat_residence_test.pdf', 'wb') as f:
+        f.write(buffer.getvalue())
+    print("PDF saved as certificat_residence_test.pdf")
+
+generate()

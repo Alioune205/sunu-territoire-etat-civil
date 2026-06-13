@@ -61,10 +61,7 @@ export function KPICard({
     );
   }
 
-  const statusClass = (numericValue > 0 && criticalStatus === 'warning') ? 'critical' 
-    : (numericValue > 0 && criticalStatus === 'error') ? 'error' 
-    : (numericValue === 0) ? 'border border-gray-200 dark:border-gray-700' 
-    : '';
+  const statusClass = (numericValue >= 0 && criticalStatus) ? (criticalStatus === 'warning' ? 'critical' : criticalStatus) : (numericValue === 0 ? 'border border-gray-200 dark:border-gray-700' : '');
   
   const statusColor = criticalStatus || 'info';
 

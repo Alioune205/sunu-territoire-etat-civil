@@ -16,10 +16,14 @@ from io import BytesIO
 
 import qrcode
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import cm, mm
 from reportlab.lib.utils import ImageReader
 from reportlab.lib.colors import HexColor
+from reportlab.platypus import Paragraph
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+import hashlib
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -108,11 +112,22 @@ def _generate_raw_pdf(dossier, officier, timbre_ref, cachet_path, signature_path
     puis on re-génère avec le QR.
     """
     buffer = BytesIO()
-    p = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
+    pagesize = landscape(A4) if dossier.type == 'residence_certificate' else A4
+    p = canvas.Canvas(buffer, pagesize=pagesize)
+    width, height = pagesize
 
-    _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
-                      cachet_path, signature_path, cachet_nominal_path, qr_image_reader=None)
+    if dossier.type == 'residence_certificate':
+        _draw_residence_pdf_content(p, width, height, dossier, officier, timbre_ref,
+                          cachet_path, signature_path, cachet_nominal_path, qr_image_reader=None)
+    elif dossier.type == 'marriage_certificate':
+        _draw_mariage_pdf_content(p, width, height, dossier, officier, timbre_ref,
+                          cachet_path, signature_path, cachet_nominal_path, qr_image_reader=None)
+    elif dossier.type == 'death_certificate':
+        _draw_deces_pdf_content(p, width, height, dossier, officier, timbre_ref,
+                          cachet_path, signature_path, cachet_nominal_path, qr_image_reader=None)
+    else:
+        _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
+                          cachet_path, signature_path, cachet_nominal_path, qr_image_reader=None)
 
     p.showPage()
     p.save()
@@ -143,16 +158,515 @@ def _generate_final_pdf(dossier, officier, timbre_ref, cachet_path,
 
     # Générer le PDF final
     buffer = BytesIO()
-    p = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
+    pagesize = landscape(A4) if dossier.type == 'residence_certificate' else A4
+    p = canvas.Canvas(buffer, pagesize=pagesize)
+    width, height = pagesize
 
-    _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
-                      cachet_path, signature_path, cachet_nominal_path, qr_image_reader)
+    if dossier.type == 'residence_certificate':
+        _draw_residence_pdf_content(p, width, height, dossier, officier, timbre_ref,
+                          cachet_path, signature_path, cachet_nominal_path, qr_image_reader)
+    elif dossier.type == 'marriage_certificate':
+        _draw_mariage_pdf_content(p, width, height, dossier, officier, timbre_ref,
+                          cachet_path, signature_path, cachet_nominal_path, qr_image_reader)
+    elif dossier.type == 'death_certificate':
+        _draw_deces_pdf_content(p, width, height, dossier, officier, timbre_ref,
+                          cachet_path, signature_path, cachet_nominal_path, qr_image_reader)
+    else:
+        _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,
+                          cachet_path, signature_path, cachet_nominal_path, qr_image_reader)
 
     p.showPage()
     p.save()
     buffer.seek(0)
     return buffer.getvalue()
+
+
+def _draw_residence_pdf_content(p, width, height, dossier, officier, timbre_ref,
+                                cachet_path, signature_path, cachet_nominal_path, qr_image_reader):
+    """Dessine le certificat de résidence au format A4 Paysage."""
+    VERT = HexColor('#00853F')
+    NOIR = HexColor('#000000')
+    BLEU_FONCE = HexColor('#0F172A')
+    ROUGE = HexColor('#E31B23')
+
+    metadata = dossier.metadata or {}
+    citizen = dossier.citizen
+
+    # En-tête gauche
+    y = height - 2 * cm
+    p.setFillColor(NOIR)
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(5 * cm, y, "Un Peuple - Un But - Une Foi")
+    y -= 0.6 * cm
+    p.setFont("Helvetica-Bold", 14)
+    p.setFillColor(BLEU_FONCE)
+    region = dossier.commune.region if dossier.commune and dossier.commune.region else "DAKAR"
+    p.drawCentredString(5 * cm, y, f"REGION DE {region.upper()}")
+    y -= 0.5 * cm
+    p.setFont("Helvetica-Bold", 11)
+    commune_name = dossier.commune.name if dossier.commune else "INCONNUE"
+    p.drawCentredString(5 * cm, y, "COMMUNE D'ARRONDISSEMENT DES")
+    y -= 0.5 * cm
+    p.drawCentredString(5 * cm, y, commune_name.upper())
+
+    # Titre droit
+    p.setFont("Helvetica-Bold", 26)
+    p.setFillColor(BLEU_FONCE)
+    p.drawString(14 * cm, height - 3 * cm, "CERTIFICAT DE RESIDENCE")
+    p.setStrokeColor(NOIR)
+    p.setLineWidth(1)
+    p.line(18.5 * cm, height - 3.4 * cm, 23.5 * cm, height - 3.4 * cm)
+
+    # Référence
+    y_ref = height - 5 * cm
+    p.setFont("Helvetica", 14)
+    p.setFillColor(NOIR)
+    p.drawString(15 * cm, y_ref, f"N° Pièce portée : {dossier.reference}")
+
+    # Données
+    prenoms = metadata.get('prenoms_requerant') or (citizen.first_name if citizen else "")
+    nom = metadata.get('nom_requerant') or (citizen.last_name if citizen else "")
+    nom_complet = f"{prenoms} {nom}".strip()
+    date_naissance = metadata.get('date_naissance') or (str(citizen.profile.date_of_birth) if citizen and hasattr(citizen, 'profile') else "")
+    lieu_naissance = metadata.get('lieu_naissance') or (citizen.profile.place_of_birth if citizen and hasattr(citizen, 'profile') else "")
+    adresse = metadata.get('adresse') or (citizen.profile.address if citizen and hasattr(citizen, 'profile') else "")
+    quartier = metadata.get('quartier', '')
+    date_installation = metadata.get('date_installation', '')
+
+    # --- 4. CORPS DU TEXTE ---
+    TEXT_X = 3 * cm
+    TEXT_Y = height - 11.5 * cm
+    TEXT_W = width - 6 * cm
+    TEXT_H = 5 * cm
+
+    style_center = ParagraphStyle(
+        name='Center', fontName='Helvetica', fontSize=19, leading=28, alignment=TA_CENTER
+    )
+    
+    texte_complet = (
+        f"Nous soussigné(e) Maire de la Commune de {commune_name.capitalize()} certifions "
+        f"que {nom_complet} né(e) le {date_naissance} à {lieu_naissance} et qu'il (elle) "
+        f"réside à {adresse} au quartier {quartier} depuis {date_installation}."
+    )
+    
+    para = Paragraph(texte_complet, style_center)
+    para.wrap(TEXT_W, TEXT_H)
+    para.drawOn(p, TEXT_X, TEXT_Y)
+
+    # --- 5. CADRE ETAT CIVIL ---
+    CADRE_W = 8.5 * cm
+    CADRE_H = 4.5 * cm
+    CADRE_X = 2 * cm
+    CADRE_Y = 4 * cm 
+
+    p.setDash([3, 3], 0)
+    p.setLineWidth(1.5)
+    p.setStrokeColor(NOIR)
+    p.roundRect(CADRE_X, CADRE_Y, CADRE_W, CADRE_H, 5, fill=0)
+    p.setDash([], 0)
+    
+    p.setFont("Helvetica-Bold", 8)
+    p.drawCentredString(CADRE_X + 3.5*cm, CADRE_Y + 3.8*cm, "REPUBLIQUE DU SENEGAL")
+    p.setFont("Helvetica-Bold", 7)
+    p.drawCentredString(CADRE_X + 3.5*cm, CADRE_Y + 3.4*cm, "COMMUNE DE")
+    p.drawCentredString(CADRE_X + 3.5*cm, CADRE_Y + 3.1*cm, commune_name.upper().replace("COMMUNE DE ", "").replace("COMMUNE DES ", ""))
+    p.setFont("Helvetica-Bold", 14)
+    p.drawCentredString(CADRE_X + 3.5*cm, CADRE_Y + 2.4*cm, "ETAT CIVIL")
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(CADRE_X + 0.5*cm, CADRE_Y + 1*cm, "S/D")
+    p.setDash([1, 2], 0)
+    p.setLineWidth(1)
+    p.line(CADRE_X + 1.5*cm, CADRE_Y + 1*cm, CADRE_X + 3.5*cm, CADRE_Y + 1*cm)
+    p.setDash([], 0)
+    p.drawString(CADRE_X + 4*cm, CADRE_Y + 1*cm, "N°")
+    p.setDash([1, 2], 0)
+    p.line(CADRE_X + 4.5*cm, CADRE_Y + 1*cm, CADRE_X + 6*cm, CADRE_Y + 1*cm)
+    p.setDash([], 0)
+
+    # --- 6. TIMBRE FISCAL (INTÉRIEUR DU CADRE) ---
+    TIMBRE_W = 1.5 * cm
+    TIMBRE_H = 2 * cm
+    TIMBRE_X = CADRE_X + CADRE_W - TIMBRE_W - 0.5 * cm
+    TIMBRE_Y = CADRE_Y + CADRE_H - TIMBRE_H - 0.5 * cm
+    _draw_secure_timbre(p, TIMBRE_X, TIMBRE_Y, timbre_ref)
+
+    # --- 7. BLOC SIGNATURE ---
+    SIG_TEXT_W = 8 * cm
+    SIG_TEXT_H = 2.5 * cm
+    SIG_TEXT_X = 14 * cm
+    SIG_TEXT_Y = 6.5 * cm
+
+    p.setFont("Helvetica", 14)
+    p.setFillColor(NOIR)
+    date_str = dossier.updated_at.strftime("%d/%m/%Y") if dossier.updated_at else ""
+    p.drawCentredString(SIG_TEXT_X + SIG_TEXT_W/2, SIG_TEXT_Y + 1.5*cm, f"Fait à {commune_name.capitalize()}, le {date_str}")
+    p.drawCentredString(SIG_TEXT_X + SIG_TEXT_W/2, SIG_TEXT_Y + 0.5*cm, "P. le Maire et P.O")
+    p.drawCentredString(SIG_TEXT_X + SIG_TEXT_W/2, SIG_TEXT_Y, "l'Officier de l'Etat Civil")
+
+    # Image Signature
+    SIG_IMG_W = 4 * cm
+    SIG_IMG_H = 2 * cm
+    SIG_IMG_X = SIG_TEXT_X + SIG_TEXT_W/2 - SIG_IMG_W/2
+    SIG_IMG_Y = SIG_TEXT_Y - SIG_IMG_H - 0.2*cm
+    
+    # Cachet Nominal (à côté de la signature)
+    CACHET_NOM_W = 3.5 * cm
+    CACHET_NOM_H = 1.5 * cm
+    CACHET_NOM_X = SIG_IMG_X - CACHET_NOM_W - 0.2*cm
+    CACHET_NOM_Y = SIG_IMG_Y + 0.2*cm
+    
+    if cachet_nominal_path and os.path.exists(cachet_nominal_path):
+        p.drawImage(ImageReader(cachet_nominal_path), CACHET_NOM_X, CACHET_NOM_Y, width=CACHET_NOM_W, height=CACHET_NOM_H, mask='auto')
+
+    if signature_path and os.path.exists(signature_path):
+        p.drawImage(ImageReader(signature_path), SIG_IMG_X, SIG_IMG_Y, width=SIG_IMG_W, height=SIG_IMG_H, mask='auto')
+    
+    # --- 8. CACHET ROND ---
+    # Doit être à DROITE du bloc signature
+    CACHET_ROND_W = 4.5 * cm
+    CACHET_ROND_H = 4.5 * cm
+    CACHET_ROND_X = SIG_TEXT_X + SIG_TEXT_W + 0.5 * cm
+    CACHET_ROND_Y = SIG_IMG_Y - 0.5*cm
+    
+    if cachet_path and os.path.exists(cachet_path):
+        p.drawImage(ImageReader(cachet_path), CACHET_ROND_X, CACHET_ROND_Y, width=CACHET_ROND_W, height=CACHET_ROND_H, mask='auto')
+
+    # --- 9. QR CODE & TEXTE ---
+    QR_W = 2.5 * cm
+    QR_H = 2.5 * cm
+    QR_X = width / 2 - QR_W / 2
+    QR_Y = 1.5 * cm # 1.5cm marge depuis le bas de page
+    
+    QR_TEXT_Y = QR_Y - 0.5 * cm # Texte sous le QR
+    
+    if qr_image_reader:
+        p.drawImage(qr_image_reader, QR_X, QR_Y, width=QR_W, height=QR_H)
+    else:
+        # Placeholder fonctionnel pour le test sans API complète
+        hash_content = f"{dossier.reference}{nom_complet}{date_naissance}{commune_name}".encode('utf-8')
+        doc_hash = hashlib.sha256(hash_content).hexdigest()
+        qr_data = f"https://teranga-civil.sn/verify/{doc_hash}"
+        
+        qr = qrcode.QRCode(version=1, box_size=10, border=1)
+        qr.add_data(qr_data)
+        qr.make(fit=True)
+        img_qr = qr.make_image(fill_color="black", back_color="white")
+        qr_buffer = BytesIO()
+        img_qr.save(qr_buffer, format="PNG")
+        qr_buffer.seek(0)
+        p.drawImage(ImageReader(qr_buffer), QR_X, QR_Y, width=QR_W, height=QR_H)
+
+    p.setFont("Helvetica", 8)
+    p.drawCentredString(width / 2, QR_TEXT_Y + 0.1*cm, "Scannez pour vérifier l'authenticité de ce document")
+
+def _draw_mariage_pdf_content(p, width, height, dossier, officier, timbre_ref,
+                              cachet_path, signature_path, cachet_nominal_path, qr_image_reader):
+    """Dessine le certificat de mariage au format A4 Portrait."""
+    NOIR = HexColor('#000000')
+    VERT = HexColor('#00853F')
+    
+    metadata = dossier.metadata or {}
+    commune_name = dossier.commune.name if dossier.commune else "INCONNUE"
+    region_name = dossier.commune.region if dossier.commune and dossier.commune.region else "DAKAR"
+    officier_name = officier.full_name if officier else "L'Officier de l'État Civil"
+    
+    registre_no = metadata.get('registre_marriage') or metadata.get('registre', 'N/A')
+    annee_marriage = metadata.get('annee_marriage', 'N/A')
+    
+    # Rendu des textes
+    style_normal = ParagraphStyle(name='Normal', fontName='Helvetica', fontSize=12, leading=16)
+
+    p.setFillColor(NOIR)
+    
+    # En-tête gauche
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(2 * cm, height - 2 * cm, f"REGION DE {region_name.upper()}")
+    p.drawString(2 * cm, height - 2.5 * cm, "VILLE DE DAKAR") # TODO: rendre dynamique selon région
+    p.drawString(2 * cm, height - 3 * cm, "COMMUNE D'ARRONDISSEMENT")
+    p.drawString(2 * cm, height - 3.5 * cm, f"DE {commune_name.upper()}")
+    p.drawString(2 * cm, height - 4 * cm, "CENTRE D'ÉTAT CIVIL")
+    
+    # En-tête droit
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(14 * cm, height - 2 * cm, "REPUBLIQUE DU SENEGAL")
+    p.setFont("Helvetica", 10)
+    p.drawString(14 * cm, height - 2.5 * cm, "Un Peuple - Un But - Une Foi")
+
+    # Informations Registre
+    y_reg = height - 6.5 * cm
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(2 * cm, y_reg, f"Registre N° {registre_no}")
+    
+    p.setFont("Helvetica", 11)
+    p.drawString(2 * cm, y_reg - 0.7 * cm, f"L'an {annee_marriage},")
+    p.drawString(2 * cm, y_reg - 1.4 * cm, "Date d'enregistrement non précisée.")
+
+    # Titre
+    y_titre = height - 9.5 * cm
+    p.setFont("Helvetica-Bold", 16)
+    p.drawCentredString(width / 2, y_titre, "CERTIFICAT DE MARIAGE CONSTATÉ")
+
+    # Corps du texte
+    y_body = y_titre - 1.5 * cm
+    
+    para_intro = Paragraph(
+        f"Nous, <b>{officier_name}</b>, Officier d'État civil du <b>CENTRE D'ÉTAT CIVIL DE {commune_name.upper()}</b>, certifions à tous ceux "
+        "qu'il appartiendra que :", style_normal)
+    para_intro.wrap(width - 4 * cm, 5 * cm)
+    para_intro.drawOn(p, 2 * cm, y_body - para_intro.height)
+    y_body -= para_intro.height + 0.8 * cm
+
+    # Mari
+    mari_nom = metadata.get('nom_epoux', 'Nom non précisé')
+    mari_prof = metadata.get('profession_epoux', 'Non précisée')
+    mari_domicile = metadata.get('domicile_epoux', 'Non précisé')
+    mari_date_naiss = metadata.get('date_naissance_epoux', 'Non précisée')
+    mari_lieu_naiss = metadata.get('lieu_naissance_epoux', 'Non précisé')
+    mari_pere = metadata.get('prenom_pere_epoux', 'Non précisé')
+    mari_mere = metadata.get('prenom_mere_epoux', 'Non précisé')
+
+    mari_text = (
+        f"<b>Monsieur {mari_nom},</b><br/>"
+        f"Profession : <b>{mari_prof}</b>, domicilié à <b>{mari_domicile}</b>,<br/>"
+        f"Né le {mari_date_naiss} à {mari_lieu_naiss},<br/>"
+        f"Fils de <b>{mari_pere}</b> et de <b>{mari_mere}</b>,<br/>"
+        "D'une part,"
+    )
+    para_mari = Paragraph(mari_text, style_normal)
+    para_mari.wrap(width - 4 * cm, 5 * cm)
+    para_mari.drawOn(p, 2 * cm, y_body - para_mari.height)
+    y_body -= para_mari.height + 0.5 * cm
+    
+    p.drawString(2 * cm, y_body, "Et")
+    y_body -= 0.8 * cm
+
+    # Epouse
+    epouse_nom = metadata.get('nom_epouse', 'Nom non précisé')
+    epouse_prof = metadata.get('profession_epouse', 'Non précisée')
+    epouse_domicile = metadata.get('domicile_epouse', 'Non précisée')
+    epouse_date_naiss = metadata.get('date_naissance_epouse', 'Non précisée')
+    epouse_lieu_naiss = metadata.get('lieu_naissance_epouse', 'Non précisé')
+    epouse_pere = metadata.get('prenom_pere_epouse', 'Non précisé')
+    epouse_mere = metadata.get('prenom_mere_epouse', 'Non précisé')
+
+    epouse_text = (
+        f"<b>Mademoiselle {epouse_nom},</b><br/>"
+        f"Profession : <b>{epouse_prof}</b>, domiciliée à <b>{epouse_domicile}</b>,<br/>"
+        f"Née le <b>{epouse_date_naiss}</b> à {epouse_lieu_naiss},<br/>"
+        f"Fille de <b>{epouse_pere}</b> et de <b>{epouse_mere}</b>,<br/>"
+        "D'autre part,"
+    )
+    para_epouse = Paragraph(epouse_text, style_normal)
+    para_epouse.wrap(width - 4 * cm, 5 * cm)
+    para_epouse.drawOn(p, 2 * cm, y_body - para_epouse.height)
+    y_body -= para_epouse.height + 0.8 * cm
+
+    # Conclusion
+    date_marriage = metadata.get('date_marriage', 'Non précisée')
+    option = metadata.get('option_souscrite', 'Monogamie')
+    regime = metadata.get('regime_matrimonial', 'séparation des biens')
+
+    concl_text = (
+        f"Ont contracté mariage entre eux selon la coutume, <b>le {date_marriage}</b>,<br/>"
+        f"Option souscrite : <b>{option}</b>,<br/>"
+        f"Et que ce mariage a été enregistré par nous sur leur demande le {date_marriage} à {region_name.capitalize()},<br/>"
+        f"Régime matrimonial choisi : <b>{regime}</b>."
+    )
+    para_concl = Paragraph(concl_text, style_normal)
+    para_concl.wrap(width - 4 * cm, 5 * cm)
+    para_concl.drawOn(p, 2 * cm, y_body - para_concl.height)
+    y_body -= para_concl.height + 1.2 * cm
+
+    # ======= RÉORGANISATION EN 5 ZONES SÉPARÉES =======
+    # y_body est la ligne où le texte se termine. 
+    # On place toutes les zones d'authentification en bas (max 4.5 cm de haut)
+    # pour dégager la zone de texte.
+    zone_y = min(1.5 * cm, y_body - 4.5 * cm) 
+    
+    from datetime import datetime
+    date_str = dossier.updated_at.strftime("%d/%m/%Y") if dossier.updated_at else datetime.now().strftime("%d/%m/%Y")
+    
+    # === ZONE 1 : QR Code + Textes ===
+    z1_x = 1.0 * cm
+    qr_size = 2.5 * cm
+    qr_y = zone_y + 0.8 * cm
+    if qr_image_reader:
+        p.drawImage(qr_image_reader, z1_x + 0.5*cm, qr_y, width=qr_size, height=qr_size)
+    p.setFont("Helvetica", 6)
+    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.2 * cm, "Scannez pour vérifier")
+    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.5 * cm, "l'authenticité")
+    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.8 * cm, f"Réf : {dossier.reference}")
+
+    # === ZONE 2 : Timbre Fiscal (Option 1) ===
+    z2_x = z1_x + 3.5 * cm
+    if timbre_ref:
+        _draw_secure_timbre(p, z2_x, zone_y + 0.8 * cm, timbre_ref)
+
+    # === ZONE 3 : Tampon rond (Cachet Communal) ===
+    z3_x = z2_x + 3.5 * cm
+    cachet_y = zone_y + 0.2 * cm
+    if cachet_path and os.path.exists(cachet_path):
+        p.drawImage(ImageReader(cachet_path), z3_x, cachet_y, width=4.0*cm, height=4.0*cm, mask='auto')
+
+    # === ZONE 4 : Texte Officier ===
+    z4_x = z3_x + 4.2 * cm
+    text_y = zone_y + 3.5 * cm
+    p.setFont("Helvetica", 9)
+    p.drawCentredString(z4_x + 1.5*cm, text_y, f"Fait à {commune_name.capitalize()},")
+    p.drawCentredString(z4_x + 1.5*cm, text_y - 0.4*cm, f"le {date_str}")
+    p.setFont("Helvetica-Bold", 9)
+    p.drawCentredString(z4_x + 1.5*cm, text_y - 1.2*cm, officier_name)
+    p.setFont("Helvetica", 9)
+    p.drawCentredString(z4_x + 1.5*cm, text_y - 1.6*cm, "Officier de l'Etat Civil")
+
+    # === ZONE 5 : Tampon Ovale (Nominal) + Signature manuscrite ===
+    z5_x = z4_x + 3.0 * cm
+    # Le tampon nominal
+    cachet_nom_w = 3.5 * cm
+    cachet_nom_h = 1.5 * cm
+    cachet_nom_y = zone_y + 1.8 * cm
+    if cachet_nominal_path and os.path.exists(cachet_nominal_path):
+        p.drawImage(ImageReader(cachet_nominal_path), z5_x, cachet_nom_y, width=cachet_nom_w, height=cachet_nom_h, mask='auto')
+    
+    # La signature EN DESSOUS (ou au-dessus) du tampon nominal pour ne pas chevaucher
+    sig_w = 3.5 * cm
+    sig_h = 1.5 * cm
+    sig_y = cachet_nom_y - sig_h - 0.2*cm
+    if signature_path and os.path.exists(signature_path):
+        p.drawImage(ImageReader(signature_path), z5_x, sig_y, width=sig_w, height=sig_h, mask='auto')
+
+
+def _draw_deces_pdf_content(p, width, height, dossier, officier, timbre_ref,
+                              cachet_path, signature_path, cachet_nominal_path, qr_image_reader):
+    """Dessine le certificat de décès au format A4 Portrait."""
+    from reportlab.platypus import Table, TableStyle
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_JUSTIFY
+
+    NOIR = HexColor('#000000')
+    VERT = HexColor('#00853F')
+    
+    metadata = dossier.metadata or {}
+    commune_name = dossier.commune.name if dossier.commune else "INCONNUE"
+    region_name = dossier.commune.region if dossier.commune and dossier.commune.region else "DAKAR"
+    officier_name = officier.full_name if officier else "L'Officier de l'État Civil"
+    
+    style_normal = ParagraphStyle(name='Normal', fontName='Helvetica', fontSize=12, leading=18, alignment=TA_JUSTIFY)
+    
+    # ---------------- EN-TÊTE ----------------
+    p.setFillColor(NOIR)
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(2 * cm, height - 2 * cm, f"REGION DE {region_name.upper()}")
+    p.drawString(2 * cm, height - 2.5 * cm, "VILLE DE DAKAR")
+    p.drawString(2 * cm, height - 3 * cm, "COMMUNE D'ARRONDISSEMENT")
+    p.drawString(2 * cm, height - 3.5 * cm, f"DE {commune_name.upper()}")
+    p.drawString(2 * cm, height - 4 * cm, "CENTRE D'ÉTAT CIVIL")
+    
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(14 * cm, height - 2 * cm, "REPUBLIQUE DU SENEGAL")
+    p.setFont("Helvetica", 10)
+    p.drawString(14 * cm, height - 2.5 * cm, "Un Peuple - Un But - Une Foi")
+    
+    # ---------------- TITRE ----------------
+    y_titre = height - 6.5 * cm
+    p.setFont("Helvetica-Bold", 18)
+    p.drawCentredString(width / 2, y_titre, "CERTIFICAT DE DÉCÈS")
+    p.setLineWidth(1)
+    p.line(width / 2 - 4 * cm, y_titre - 0.2 * cm, width / 2 + 4 * cm, y_titre - 0.2 * cm)
+    
+    # ---------------- TEXTE ADMINISTRATIF ----------------
+    y_body = y_titre - 2.0 * cm
+    
+    nom = metadata.get('nom_defunt', '{nom_defunt}')
+    prenom = metadata.get('prenom_defunt', '{prenom_defunt}')
+    sexe = metadata.get('sexe_defunt', '{sexe}')
+    titre = "Monsieur" if str(sexe).lower().startswith('m') else "Madame"
+    date_naiss = metadata.get('date_naissance_defunt', '{date_naissance}')
+    lieu_naiss = metadata.get('lieu_naissance_defunt', '{lieu_naissance}')
+    date_deces = metadata.get('date_deces', '{date_deces}')
+    heure_deces = metadata.get('heure_deces', '{heure_deces}')
+    lieu_deces = metadata.get('lieu_deces', '{lieu_deces}')
+    
+    nationalite = metadata.get('nationalite_defunt', '{nationalite}')
+    profession = metadata.get('profession_defunt', '{profession}')
+    adresse = metadata.get('adresse_defunt', '{adresse}')
+    declarant = metadata.get('nom_declarant', '{declarant}')
+    lien = metadata.get('lien_declarant', '{lien}')
+    cni = metadata.get('cni_declarant', '{cni}')
+    
+    texte_intro = (
+        f"Je soussigné(e), <b>{officier_name}</b>, Officier de l'État Civil de la Commune de "
+        f"<b>{commune_name.capitalize()}</b>, certifie que :<br/><br/>"
+        f"<b>{titre} {prenom} {nom}</b>, de nationalité <b>{nationalite}</b>, exerçant la profession de <b>{profession}</b>, et domicilié(e) à <b>{adresse}</b>, "
+        f"né(e) le <b>{date_naiss}</b> à <b>{lieu_naiss}</b>, "
+        f"est décédé(e) le <b>{date_deces}</b> à <b>{heure_deces}</b>, à <b>{lieu_deces}</b>.<br/><br/>"
+        f"L'enregistrement de ce décès a été effectué sur la déclaration de <b>{declarant}</b>, <b>{lien}</b> du défunt, titulaire de la pièce d'identité N° <b>{cni}</b>."
+    )
+    
+    para_intro = Paragraph(texte_intro, style_normal)
+    para_intro.wrap(width - 8 * cm, 10 * cm)
+    para_intro.drawOn(p, 4 * cm, y_body - para_intro.height)
+    
+    # ---------------- CONCLUSION ----------------
+    y_body -= 1.5 * cm
+    texte_concl = "Le présent certificat est délivré à l'intéressé(e) ou à ses ayants droit pour servir et valoir ce que de droit."
+    para_concl = Paragraph(texte_concl, style_normal)
+    para_concl.wrap(width - 4 * cm, 5 * cm)
+    para_concl.drawOn(p, 2 * cm, y_body - para_concl.height)
+    y_body -= para_concl.height + 0.8 * cm
+    
+    # ---------------- 5 ZONES DE VALIDATION (Réutilisées) ----------------
+    zone_y = min(1.5 * cm, y_body - 4.5 * cm) 
+    
+    from datetime import datetime
+    date_str = dossier.updated_at.strftime("%d/%m/%Y") if dossier.updated_at else datetime.now().strftime("%d/%m/%Y")
+    
+    # ZONE 1 : QR Code + Textes
+    z1_x = 1.0 * cm
+    qr_size = 2.5 * cm
+    qr_y = zone_y + 0.8 * cm
+    if qr_image_reader:
+        p.drawImage(qr_image_reader, z1_x + 0.5*cm, qr_y, width=qr_size, height=qr_size)
+    p.setFont("Helvetica", 6)
+    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.2 * cm, "Scannez pour vérifier")
+    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.5 * cm, "l'authenticité")
+    p.drawCentredString(z1_x + 1.7*cm, qr_y - 0.8 * cm, f"Réf : {dossier.reference}")
+
+    # ZONE 2 : Timbre Fiscal
+    z2_x = z1_x + 3.5 * cm
+    if timbre_ref:
+        _draw_secure_timbre(p, z2_x, zone_y + 0.8 * cm, timbre_ref)
+
+    # ZONE 3 : Tampon rond (Cachet Communal)
+    z3_x = z2_x + 3.5 * cm
+    cachet_y = zone_y + 0.2 * cm
+    if cachet_path and os.path.exists(cachet_path):
+        p.drawImage(ImageReader(cachet_path), z3_x, cachet_y, width=4.0*cm, height=4.0*cm, mask='auto')
+
+    # ZONE 4 : Texte Officier
+    z4_x = z3_x + 4.2 * cm
+    text_y = zone_y + 3.5 * cm
+    p.setFont("Helvetica", 9)
+    p.drawCentredString(z4_x + 1.5*cm, text_y, f"Fait à {commune_name.capitalize()},")
+    p.drawCentredString(z4_x + 1.5*cm, text_y - 0.4*cm, f"le {date_str}")
+    p.setFont("Helvetica-Bold", 9)
+    p.drawCentredString(z4_x + 1.5*cm, text_y - 1.2*cm, officier_name)
+    p.setFont("Helvetica", 9)
+    p.drawCentredString(z4_x + 1.5*cm, text_y - 1.6*cm, "Officier de l'Etat Civil")
+
+    # ZONE 5 : Tampon Ovale (Nominal) + Signature manuscrite
+    z5_x = z4_x + 3.0 * cm
+    cachet_nom_w = 3.5 * cm
+    cachet_nom_h = 1.5 * cm
+    cachet_nom_y = zone_y + 1.8 * cm
+    if cachet_nominal_path and os.path.exists(cachet_nominal_path):
+        p.drawImage(ImageReader(cachet_nominal_path), z5_x, cachet_nom_y, width=cachet_nom_w, height=cachet_nom_h, mask='auto')
+    
+    sig_w = 3.5 * cm
+    sig_h = 1.5 * cm
+    sig_y = cachet_nom_y - sig_h - 0.2*cm
+    if signature_path and os.path.exists(signature_path):
+        p.drawImage(ImageReader(signature_path), z5_x, sig_y, width=sig_w, height=sig_h, mask='auto')
 
 
 def _draw_pdf_content(p, width, height, dossier, officier, timbre_ref,

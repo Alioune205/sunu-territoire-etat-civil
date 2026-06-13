@@ -57,7 +57,7 @@ export function DemandesParType({ loading, stats }) {
             <BarChart data={dataByType} layout="vertical" margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
               <XAxis type="number" domain={[0, Math.ceil(maxVal * 1.15)]} hide />
-              <YAxis type="category" dataKey="type_display" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} width={140} />
+              <YAxis type="category" dataKey="type_display" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} width={160} />
               <RechartsTooltip 
                 cursor={{fill: 'transparent'}}
                 formatter={(value) => {
@@ -70,7 +70,7 @@ export function DemandesParType({ loading, stats }) {
                 {dataByType.map((entry, index) => (
                   <Cell key={`cell-${index}`} fillOpacity={1 - (index * 0.15)} />
                 ))}
-                <LabelList dataKey="count" position="right" fontSize={12} fill="#64748B" offset={8} />
+                <LabelList dataKey="count" position="right" fontSize={12} fill="#64748B" offset={12} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
