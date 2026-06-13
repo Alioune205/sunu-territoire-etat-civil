@@ -10,9 +10,4 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='citizenprofile',
-            name='cni_document',
-            field=models.FileField(blank=True, null=True, upload_to='profiles/cni/', verbose_name='Document CNI (Recto/Verso)'),
-        ),
     ]

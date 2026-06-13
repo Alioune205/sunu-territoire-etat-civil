@@ -4,6 +4,9 @@ Serializers for Dossier and DossierComment.
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
+from apps.communes.models import Commune
+from apps.users.serializers import UserListSerializer
+from apps.communes.serializers import CommuneSerializer
 from .models import Dossier, DossierComment
 
 User = get_user_model()
@@ -30,15 +33,25 @@ class DossierCommentSerializer(serializers.ModelSerializer):
 
 class DossierCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating a dossier."""
+    commune = serializers.SlugRelatedField(
+        slug_field='code',
+        queryset=Commune.objects.all(),
+        error_messages={'does_not_exist': 'Commune introuvable avec ce code.'}
+    )
 
     class Meta:
         model = Dossier
         fields = [
+            'id',
             'type',
             'commune',
             'notes',
+            'is_for_third_party',
+            'third_party_cni',
+            'third_party_relation',
             'metadata',
         ]
+        read_only_fields = ['id']
 
     def validate(self, attrs):
         dossier_type = attrs.get('type')
@@ -80,6 +93,9 @@ class DossierCreateSerializer(serializers.ModelSerializer):
 
 class DossierListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for dossier lists."""
+    citizen = UserListSerializer(read_only=True)
+    assigned_agent = UserListSerializer(read_only=True)
+    commune = CommuneSerializer(read_only=True)
     citizen_name = serializers.CharField(source='citizen.full_name', read_only=True)
     agent_name = serializers.CharField(source='assigned_agent.full_name', read_only=True, default=None)
     type_display = serializers.CharField(source='get_type_display', read_only=True)
@@ -101,6 +117,8 @@ class DossierListSerializer(serializers.ModelSerializer):
             'agent_name',
             'commune',
             'commune_name',
+            'is_for_third_party',
+            'metadata',
             'submitted_at',
             'created_at',
         ]
@@ -109,6 +127,9 @@ class DossierListSerializer(serializers.ModelSerializer):
 
 class DossierDetailSerializer(serializers.ModelSerializer):
     """Full serializer for dossier detail with comments."""
+    citizen = UserListSerializer(read_only=True)
+    assigned_agent = UserListSerializer(read_only=True)
+    commune = CommuneSerializer(read_only=True)
     citizen_name = serializers.CharField(source='citizen.full_name', read_only=True)
     citizen_email = serializers.CharField(source='citizen.email', read_only=True)
     agent_name = serializers.CharField(source='assigned_agent.full_name', read_only=True, default=None)
@@ -135,6 +156,9 @@ class DossierDetailSerializer(serializers.ModelSerializer):
             'commune',
             'commune_name',
             'notes',
+            'is_for_third_party',
+            'third_party_cni',
+            'third_party_relation',
             'metadata',
             'rejection_reason',
             'submitted_at',

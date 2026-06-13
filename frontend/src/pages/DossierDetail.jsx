@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/use-toast';
+import SecureImage from '@/components/ui/SecureImage';
+import { clearSecureImageCache } from '@/hooks/useSecureImage';
 import {
   Dialog,
   DialogContent,
@@ -83,6 +85,18 @@ export default function DossierDetail() {
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [selectedDocument, setSelectedDocument] = useState(null);
+  const [verificationChecks, setVerificationChecks] = useState({
+    cni_recto: false,
+    attestation_delegue: false,
+    constat_medecin: false,
+    cni_defunt: false,
+    cni_temoin1: false,
+    cni_temoin2: false,
+    cni_epoux: false,
+    cni_epouse: false,
+    cni_temoins: false,
+  });
   
   const [editMetadataOpen, setEditMetadataOpen] = useState(false);
   const [metadataForm, setMetadataForm] = useState({
@@ -110,8 +124,29 @@ export default function DossierDetail() {
     registre: ''
   });
 
+  const isApprovalDisabled = () => {
+    if (!dossier) return true;
+    if (dossier.type === 'residence_certificate') {
+      return !verificationChecks.cni_recto || !verificationChecks.attestation_delegue;
+    }
+    if (dossier.type === 'death_certificate') {
+      if (!verificationChecks.constat_medecin || !verificationChecks.cni_defunt) return true;
+      if (dossier.metadata?.deces_domicile) {
+        if (!verificationChecks.cni_temoin1 || !verificationChecks.cni_temoin2) return true;
+      }
+      return false;
+    }
+    if (dossier.type === 'marriage_certificate') {
+      return !verificationChecks.cni_epoux || !verificationChecks.cni_epouse || !verificationChecks.cni_temoins;
+    }
+    return false;
+  };
+
   useEffect(() => {
     fetchDossier();
+    return () => {
+      clearSecureImageCache();
+    };
   }, [id]);
 
   const fetchDossier = async () => {
@@ -206,11 +241,35 @@ export default function DossierDetail() {
     try {
       setActionLoading(true);
       await patchDossier(id, { metadata: { ...dossier.metadata, ...metadataForm } });
-      toast({ title: 'Succès', description: 'Informations mises à jour.', variant: 'success' });
+      toast({
+        title: "Succès",
+        description: "Les informations ont été mises à jour.",
+        variant: "success"
+      });
       setEditMetadataOpen(false);
       fetchDossier();
     } catch (error) {
-      toast({ title: 'Erreur', description: 'Impossible de mettre à jour les informations.', variant: 'destructive' });
+      console.error('Erreur save metadata', error);
+      
+      // Handle the specific business error for death certificate > 1 year
+      const errorData = error.response?.data;
+      if (errorData && (errorData.date_deces || errorData.non_field_errors)) {
+        const errorMsg = errorData.date_deces?.[0] || errorData.non_field_errors?.[0];
+        if (errorMsg && errorMsg.includes('1 an')) {
+          toast({
+            title: "Délai dépassé",
+            description: "Le décès remonte à plus d'un an. Un jugement supplétif est requis. Veuillez rejeter le dossier.",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour le dossier.",
+        variant: "destructive"
+      });
     } finally {
       setActionLoading(false);
     }
@@ -516,15 +575,20 @@ export default function DossierDetail() {
                   className="border border-slate-100 rounded-lg p-4 hover:bg-slate-50 transition-colors group"
                 >
                   {doc.file_type === 'image' && (
-                    <div className="aspect-video bg-slate-100 rounded-md mb-3 overflow-hidden">
-                      <img
-                        src={`http://localhost:8000${doc.url}`}
+                    <div 
+                      className="aspect-video bg-slate-100 rounded-md mb-3 overflow-hidden cursor-pointer relative group"
+                      onClick={() => setSelectedDocument(doc)}
+                    >
+                      <SecureImage
+                        src={`/api/documents/${doc.id}/download/`}
                         alt={doc.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
                       />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 flex items-center justify-center transition-all">
+                         <div className="bg-black/50 text-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="text-xs font-semibold px-2">Agrandir</span>
+                         </div>
+                      </div>
                     </div>
                   )}
                   <div className="flex items-center justify-between">
@@ -547,6 +611,78 @@ export default function DossierDetail() {
                   </div>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Checkboxes de conformité (visible uniquement en review) */}
+      {dossier.status === 'in_review' && (
+        <Card className="border-slate-100 bg-primary/5 border-primary/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold text-primary flex items-center gap-2">
+              <CheckCircle className="h-5 w-5" />
+              Vérification des pièces
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {dossier.type === 'residence_certificate' && (
+                <>
+                  <label className="flex items-center gap-3 p-2 rounded hover:bg-primary/10 cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-5 h-5 rounded border-primary/50 text-primary focus:ring-primary" checked={verificationChecks.cni_recto} onChange={(e) => setVerificationChecks({...verificationChecks, cni_recto: e.target.checked})} />
+                    <span className="text-sm font-medium text-slate-700">La pièce d'identité (CNI) du demandeur est valide et lisible.</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-2 rounded hover:bg-primary/10 cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-5 h-5 rounded border-primary/50 text-primary focus:ring-primary" checked={verificationChecks.attestation_delegue} onChange={(e) => setVerificationChecks({...verificationChecks, attestation_delegue: e.target.checked})} />
+                    <span className="text-sm font-medium text-slate-700">L'attestation du délégué de quartier est présente et signée.</span>
+                  </label>
+                </>
+              )}
+
+              {dossier.type === 'death_certificate' && (
+                <>
+                  <label className="flex items-center gap-3 p-2 rounded hover:bg-primary/10 cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-5 h-5 rounded border-primary/50 text-primary focus:ring-primary" checked={verificationChecks.constat_medecin} onChange={(e) => setVerificationChecks({...verificationChecks, constat_medecin: e.target.checked})} />
+                    <span className="text-sm font-medium text-slate-700">Le constat de décès (médecin/chef de village) est valide.</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-2 rounded hover:bg-primary/10 cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-5 h-5 rounded border-primary/50 text-primary focus:ring-primary" checked={verificationChecks.cni_defunt} onChange={(e) => setVerificationChecks({...verificationChecks, cni_defunt: e.target.checked})} />
+                    <span className="text-sm font-medium text-slate-700">La CNI du défunt est présente.</span>
+                  </label>
+                  
+                  {dossier.metadata?.deces_domicile && (
+                    <div className="pl-6 border-l-2 border-primary/30 mt-2 space-y-2">
+                      <p className="text-xs text-slate-500 font-semibold mb-1">Décès à domicile (2 témoins requis)</p>
+                      <label className="flex items-center gap-3 p-2 rounded hover:bg-primary/10 cursor-pointer transition-colors">
+                        <input type="checkbox" className="w-5 h-5 rounded border-primary/50 text-primary focus:ring-primary" checked={verificationChecks.cni_temoin1} onChange={(e) => setVerificationChecks({...verificationChecks, cni_temoin1: e.target.checked})} />
+                        <span className="text-sm font-medium text-slate-700">La CNI du Témoin 1 est valide.</span>
+                      </label>
+                      <label className="flex items-center gap-3 p-2 rounded hover:bg-primary/10 cursor-pointer transition-colors">
+                        <input type="checkbox" className="w-5 h-5 rounded border-primary/50 text-primary focus:ring-primary" checked={verificationChecks.cni_temoin2} onChange={(e) => setVerificationChecks({...verificationChecks, cni_temoin2: e.target.checked})} />
+                        <span className="text-sm font-medium text-slate-700">La CNI du Témoin 2 est valide.</span>
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {dossier.type === 'marriage_certificate' && (
+                <>
+                  <label className="flex items-center gap-3 p-2 rounded hover:bg-primary/10 cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-5 h-5 rounded border-primary/50 text-primary focus:ring-primary" checked={verificationChecks.cni_epoux} onChange={(e) => setVerificationChecks({...verificationChecks, cni_epoux: e.target.checked})} />
+                    <span className="text-sm font-medium text-slate-700">La CNI de l'époux est valide.</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-2 rounded hover:bg-primary/10 cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-5 h-5 rounded border-primary/50 text-primary focus:ring-primary" checked={verificationChecks.cni_epouse} onChange={(e) => setVerificationChecks({...verificationChecks, cni_epouse: e.target.checked})} />
+                    <span className="text-sm font-medium text-slate-700">La CNI de l'épouse est valide.</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-2 rounded hover:bg-primary/10 cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-5 h-5 rounded border-primary/50 text-primary focus:ring-primary" checked={verificationChecks.cni_temoins} onChange={(e) => setVerificationChecks({...verificationChecks, cni_temoins: e.target.checked})} />
+                    <span className="text-sm font-medium text-slate-700">Les pièces d'identité des témoins sont valides.</span>
+                  </label>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -591,8 +727,9 @@ export default function DossierDetail() {
                 <Button
                   variant="success"
                   onClick={() => handleStatusChange('approved')}
-                  disabled={actionLoading}
-                  className="gap-2 bg-success hover:bg-success/90 text-white"
+                  disabled={actionLoading || isApprovalDisabled()}
+                  className="gap-2 bg-success hover:bg-success/90 text-white disabled:opacity-50"
+                  title={isApprovalDisabled() ? "Veuillez cocher toutes les pièces conformes" : ""}
                 >
                   {actionLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -887,6 +1024,60 @@ export default function DossierDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Viewer de Document (Lightbox) */}
+      {selectedDocument && (
+        <Dialog open={!!selectedDocument} onOpenChange={(open) => { if(!open) setSelectedDocument(null); }}>
+          <DialogContent className="max-w-5xl w-full h-[90vh] flex flex-col p-2 bg-slate-900 border-none shadow-2xl">
+            <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur absolute top-0 left-0 right-0 z-10 flex flex-row items-center justify-between border-b border-slate-700">
+              <div>
+                <DialogTitle className="text-white text-lg flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  {selectedDocument.name}
+                </DialogTitle>
+              </div>
+            </DialogHeader>
+            <div className="flex-1 w-full h-full mt-16 overflow-auto flex items-center justify-center bg-black/50 rounded-lg">
+              {selectedDocument.file_type === 'image' ? (
+                <SecureImage 
+                  src={`/api/documents/${selectedDocument.id}/download/`} 
+                  alt={selectedDocument.name}
+                  className="max-w-full max-h-full object-contain"
+                />
+              ) : (
+                <div className="text-white flex flex-col items-center">
+                  <FileText className="h-16 w-16 mb-4 text-slate-500" />
+                  <p>Aperçu non disponible pour ce type de fichier.</p>
+                  <a 
+                    href={`/api/documents/${selectedDocument.id}/download/`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="mt-4 text-primary hover:underline"
+                    onClick={(e) => {
+                      // We must fetch it as blob to inject token, then download
+                      e.preventDefault();
+                      import('@/api/axiosClient').then(module => {
+                        const axiosClient = module.default;
+                        axiosClient.get(`/api/documents/${selectedDocument.id}/download/`, { responseType: 'blob' })
+                          .then(res => {
+                            const url = URL.createObjectURL(res.data);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = selectedDocument.original_filename || selectedDocument.name;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          });
+                      });
+                    }}
+                  >
+                    Télécharger le document sécurisé
+                  </a>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
