@@ -4,9 +4,6 @@ Serializers for Dossier and DossierComment.
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
-from apps.communes.models import Commune
-from apps.users.serializers import UserListSerializer
-from apps.communes.serializers import CommuneSerializer
 from .models import Dossier, DossierComment
 
 User = get_user_model()
@@ -33,25 +30,47 @@ class DossierCommentSerializer(serializers.ModelSerializer):
 
 class DossierCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating a dossier."""
-    commune = serializers.SlugRelatedField(
-        slug_field='code',
-        queryset=Commune.objects.all(),
-        error_messages={'does_not_exist': 'Commune introuvable avec ce code.'}
-    )
 
     class Meta:
         model = Dossier
         fields = [
-            'id',
             'type',
             'commune',
             'notes',
-            'is_for_third_party',
-            'third_party_cni',
-            'third_party_relation',
             'metadata',
         ]
-        read_only_fields = ['id']
+
+    def validate(self, attrs):
+        dossier_type = attrs.get('type')
+        metadata = attrs.get('metadata', {})
+        
+        from datetime import datetime, timedelta
+        
+        # Validations métier pour les nouveaux actes (Tâche 8 : Pièces jointes JSON)
+        if dossier_type == Dossier.Type.RESIDENCE_CERTIFICATE:
+            if not metadata.get('cni_recto') or not metadata.get('attestation_delegue'):
+                raise serializers.ValidationError("Pour un certificat de résidence, le payload JSON doit contenir 'cni_recto' et 'attestation_delegue'.")
+                
+        elif dossier_type == Dossier.Type.DEATH_CERTIFICATE:
+            if not metadata.get('constat_medecin') or not metadata.get('cni_defunt'):
+                raise serializers.ValidationError("Pour un acte de décès, le payload JSON doit contenir 'constat_medecin' et 'cni_defunt'.")
+            
+            # Tâche 7 : Blocage de délai (date_deces <= 1 an)
+            date_deces_str = metadata.get('date_deces')
+            if not date_deces_str:
+                raise serializers.ValidationError("La 'date_deces' est requise pour un acte de décès.")
+            try:
+                date_deces = datetime.strptime(date_deces_str, "%Y-%m-%d").date()
+                if (datetime.now().date() - date_deces).days > 365:
+                    raise serializers.ValidationError("Un acte de décès ne peut être établi si la date de décès remonte à plus d'un an.")
+            except ValueError:
+                raise serializers.ValidationError("Le format de 'date_deces' doit être YYYY-MM-DD.")
+                
+        elif dossier_type == Dossier.Type.MARRIAGE_CERTIFICATE:
+            if not metadata.get('cni_epoux') or not metadata.get('cni_epouse') or not metadata.get('cni_temoins'):
+                raise serializers.ValidationError("Pour un acte de mariage, le payload JSON doit contenir 'cni_epoux', 'cni_epouse' et 'cni_temoins'.")
+
+        return attrs
 
     def create(self, validated_data):
         validated_data['citizen'] = self.context['request'].user
@@ -61,9 +80,6 @@ class DossierCreateSerializer(serializers.ModelSerializer):
 
 class DossierListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for dossier lists."""
-    citizen = UserListSerializer(read_only=True)
-    assigned_agent = UserListSerializer(read_only=True)
-    commune = CommuneSerializer(read_only=True)
     citizen_name = serializers.CharField(source='citizen.full_name', read_only=True)
     agent_name = serializers.CharField(source='assigned_agent.full_name', read_only=True, default=None)
     type_display = serializers.CharField(source='get_type_display', read_only=True)
@@ -85,8 +101,6 @@ class DossierListSerializer(serializers.ModelSerializer):
             'agent_name',
             'commune',
             'commune_name',
-            'is_for_third_party',
-            'metadata',
             'submitted_at',
             'created_at',
         ]
@@ -95,9 +109,6 @@ class DossierListSerializer(serializers.ModelSerializer):
 
 class DossierDetailSerializer(serializers.ModelSerializer):
     """Full serializer for dossier detail with comments."""
-    citizen = UserListSerializer(read_only=True)
-    assigned_agent = UserListSerializer(read_only=True)
-    commune = CommuneSerializer(read_only=True)
     citizen_name = serializers.CharField(source='citizen.full_name', read_only=True)
     citizen_email = serializers.CharField(source='citizen.email', read_only=True)
     agent_name = serializers.CharField(source='assigned_agent.full_name', read_only=True, default=None)
@@ -124,9 +135,6 @@ class DossierDetailSerializer(serializers.ModelSerializer):
             'commune',
             'commune_name',
             'notes',
-            'is_for_third_party',
-            'third_party_cni',
-            'third_party_relation',
             'metadata',
             'rejection_reason',
             'submitted_at',
@@ -148,7 +156,39 @@ class DossierUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Dossier
-        fields = ['notes']
+        fields = ['notes', 'metadata']
+        
+    def validate(self, attrs):
+        # Valider également lors de l'update si metadata est fourni
+        if 'metadata' in attrs:
+            instance = getattr(self, 'instance', None)
+            dossier_type = instance.type if instance else attrs.get('type')
+            metadata = attrs.get('metadata', {})
+            
+            from datetime import datetime
+            if dossier_type == Dossier.Type.RESIDENCE_CERTIFICATE:
+                if not metadata.get('cni_recto') or not metadata.get('attestation_delegue'):
+                    raise serializers.ValidationError("Pour un certificat de résidence, le payload JSON doit contenir 'cni_recto' et 'attestation_delegue'.")
+                    
+            elif dossier_type == Dossier.Type.DEATH_CERTIFICATE:
+                if not metadata.get('constat_medecin') or not metadata.get('cni_defunt'):
+                    raise serializers.ValidationError("Pour un acte de décès, le payload JSON doit contenir 'constat_medecin' et 'cni_defunt'.")
+                
+                date_deces_str = metadata.get('date_deces')
+                if not date_deces_str:
+                    raise serializers.ValidationError("La 'date_deces' est requise pour un acte de décès.")
+                try:
+                    date_deces = datetime.strptime(date_deces_str, "%Y-%m-%d").date()
+                    if (datetime.now().date() - date_deces).days > 365:
+                        raise serializers.ValidationError("Un acte de décès ne peut être établi si la date de décès remonte à plus d'un an.")
+                except ValueError:
+                    raise serializers.ValidationError("Le format de 'date_deces' doit être YYYY-MM-DD.")
+                    
+            elif dossier_type == Dossier.Type.MARRIAGE_CERTIFICATE:
+                if not metadata.get('cni_epoux') or not metadata.get('cni_epouse') or not metadata.get('cni_temoins'):
+                    raise serializers.ValidationError("Pour un acte de mariage, le payload JSON doit contenir 'cni_epoux', 'cni_epouse' et 'cni_temoins'.")
+
+        return attrs
 
 
 class DossierAssignSerializer(serializers.Serializer):

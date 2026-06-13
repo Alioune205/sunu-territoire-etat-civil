@@ -14,13 +14,8 @@ from .ocr import (
     extract_cni_data_from_base64,
 )
 from .validators import validate_citizen_document, check_dossier_duplicate
-from .chatbot import chat_orchestrator
-from .faq import get_faq_answer
+from .faq import find_closest_faq
 from .ndiogoye import process_ndiogoye_chat
-from .models import NdiogoyeChatLog
-from .serializers import NdiogoyeChatLogSerializer
-from rest_framework import generics
-from apps.shared.permissions import IsAdminStaff
 
 
 class OcrExtractView(APIView):
@@ -128,9 +123,25 @@ class OcrCameraView(APIView):
 
 
 class OcrConfirmView(APIView):
+    """
+    Endpoint de confirmation OCR.
+    
+    ATTENTION (Périmètre DEV 1D / Frontend) :
+    Cet endpoint NE SAUVEGARDE PAS les données dans la base de données.
+    L'enregistrement des informations structurées (Nom, Prénom, CNI) relève 
+    du périmètre Core/Auth (DEV 1A) et Dossier. 
+    
+    Le flux attendu est le suivant :
+    1. Frontend appelle `/api/ai/ocr/extract/` -> Reçoit les données JSON.
+    2. Frontend pré-remplit ses formulaires. L'utilisateur vérifie et corrige.
+    3. Frontend (Optionnel) appelle cet endpoint `/api/ai/ocr/confirm/` pour 
+       valider formellement les données côté client (tracking/analytics).
+    4. Frontend soumet la donnée finale à l'endpoint de création de dossier 
+       (`/api/dossiers/`) ou d'inscription (`/api/auth/register/`).
+    """
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(tags=['AI & OCR'], summary="Confirmer les données extraites d'un document")
+    @extend_schema(tags=['AI & OCR'], summary="Confirmer les données extraites d'un document (Validation Client)")
     def post(self, request, *args, **kwargs):
         document_id = request.data.get('document_id')
         confirmed_data = request.data.get('confirmed_data')
@@ -138,29 +149,36 @@ class OcrConfirmView(APIView):
         if not confirmed_data:
             return Response({'error': 'confirmed_data est requis.'}, status=400)
 
+        # Si un document existe déjà en base, on met à jour son statut OCR.
+        if document_id:
+            from apps.documents.models import Document
+            try:
+                doc = Document.objects.get(id=document_id, uploaded_by=request.user)
+                doc.ocr_status = Document.OCRStatus.COMPLETED
+                doc.ocr_text = str(confirmed_data)
+                doc.save(update_fields=['ocr_status', 'ocr_text'])
+            except Document.DoesNotExist:
+                pass # Échec silencieux, le document n'a peut-être pas encore été créé
+
         return Response({
-            'message': 'Données confirmées avec succès.',
+            'message': 'Données OCR confirmées. Veuillez procéder à la soumission finale via le module approprié (Dossier ou Profil).',
             'document_id': document_id,
-            'confirmed_data': confirmed_data
+            'confirmed_data': confirmed_data,
+            'next_step': 'Soumettre ces données à /api/dossiers/ ou /api/auth/register/ selon le cas d\'usage.'
         })
 
 
 class FAQAssistantView(APIView):
     permission_classes = [AllowAny]
 
-    @extend_schema(tags=['AI & OCR'], summary="Poser une question à l'assistant IA (RAG+)")
+    @extend_schema(tags=['AI & OCR'], summary="Poser une question à l'assistant FAQ")
     def post(self, request, *args, **kwargs):
         question = request.data.get('question', '')
-        chat_history = request.data.get('chat_history', [])
         
         if not question:
             return Response({'error': 'Veuillez poser une question.'}, status=400)
             
-        answer = chat_orchestrator(
-            user=request.user,
-            user_message=question,
-            chat_history=chat_history
-        )
+        answer = find_closest_faq(question)
         
         return Response({
             'question': question,
@@ -174,40 +192,11 @@ class NdiogoyeChatView(APIView):
     @extend_schema(tags=['AI & OCR'], summary="Discuter avec l'assistant IA Ndiogoye")
     def post(self, request, *args, **kwargs):
         message = request.data.get('message', '')
-        chat_history = request.data.get('chat_history', [])
         conversation_id = request.data.get('conversation_id')
 
         if not message:
             return Response({'error': 'Veuillez envoyer un message.'}, status=400)
 
-        user = request.user if request.user.is_authenticated else None
-
-        result = chat_orchestrator(
-            user=user,
-            user_message=message,
-            chat_history=chat_history
-        )
+        result = process_ndiogoye_chat(message, conversation_id)
         
-        if conversation_id and isinstance(result, dict):
-            result['conversation_id'] = conversation_id
-            
-        # Sauvegarde en base de données
-        if isinstance(result, dict):
-            NdiogoyeChatLog.objects.create(
-                user=user,
-                session_id=result.get('conversation_id'),
-                message=message,
-                reply=result.get('reply'),
-                intent=result.get('intent'),
-                action=result.get('action')
-            )
         return Response(result)
-
-class NdiogoyeLogListView(generics.ListAPIView):
-    """
-    GET /api/ai/ndiogoye/logs/
-    Liste paginée de l'historique des conversations avec le chatbot (Admin/Agent uniquement).
-    """
-    queryset = NdiogoyeChatLog.objects.select_related('user').all()
-    serializer_class = NdiogoyeChatLogSerializer
-    permission_classes = [IsAuthenticated, IsAdminStaff]
