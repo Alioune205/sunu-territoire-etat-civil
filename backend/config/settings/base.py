@@ -7,6 +7,7 @@ from pathlib import Path
 from datetime import timedelta
 
 from decouple import config, Csv
+from django.urls import reverse_lazy
 
 # ==============================================================================
 # PATHS
@@ -57,6 +58,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 DJANGO_APPS = [
     'daphne',
+    'unfold',
+    'unfold.contrib.filters',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -114,6 +117,28 @@ MIDDLEWARE = [
     'apps.payments.middleware.ReadOnlyForSuperAdminMiddleware',
     'apps.system.middleware.PerformanceMonitoringMiddleware',
 ]
+
+# ==============================================================================
+# CELERY CONFIGURATION
+# ==============================================================================
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/1')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/1')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+# Configuration Celery Beat (Tâches périodiques)
+CELERY_BEAT_SCHEDULE = {
+    'verifier-sla-chaque-15-min': {
+        'task': 'apps.etat_civil.tasks_attribution.task_verifier_sla_et_escalader',
+        'schedule': 900.0,  # 15 minutes
+    },
+    'recalculer-scores-nuit': {
+        'task': 'apps.etat_civil.tasks_attribution.task_recalculer_scores_agents',
+        'schedule': 86400.0,  # Chaque jour
+    },
+}
 
 # ==============================================================================
 # URL CONFIGURATION
@@ -461,4 +486,68 @@ TWILIO_PHONE_NUMBER = config('TWILIO_PHONE_NUMBER', default='')
 
 SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')
 SENDGRID_FROM_EMAIL = config('SENDGRID_FROM_EMAIL', default='no-reply@terangacivil.sn')
+
+# ==============================================================================
+# UNFOLD (Admin Theme)
+# ==============================================================================
+UNFOLD = {
+    "SITE_TITLE": "Teranga Civil",
+    "SITE_HEADER": "Teranga Civil Admin",
+    "SITE_SYMBOL": "stars",  # Material icon
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": True,
+    "COLORS": {
+        "primary": {
+            "50": "238 242 255",
+            "100": "224 231 255",
+            "200": "199 210 254",
+            "300": "165 180 252",
+            "400": "129 140 248",
+            "500": "99 102 241",  # Indigo 500
+            "600": "79 70 229",
+            "700": "67 56 202",
+            "800": "55 48 163",
+            "900": "49 46 129",
+            "950": "30 27 75",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "Gestion Citoyenne",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Dossiers (Demandes)",
+                        "icon": "folder_shared",
+                        "link": reverse_lazy("admin:dossiers_dossier_changelist"),
+                    },
+                    {
+                        "title": "Commentaires Dossiers",
+                        "icon": "forum",
+                        "link": reverse_lazy("admin:dossiers_dossiercomment_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Sécurité & Accès",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Utilisateurs",
+                        "icon": "person",
+                        "link": reverse_lazy("admin:users_user_changelist"),
+                    },
+                    {
+                        "title": "Groupes & Permissions",
+                        "icon": "shield",
+                        "link": reverse_lazy("admin:auth_group_changelist"),
+                    },
+                ],
+            },
+        ],
+    },
+}
 

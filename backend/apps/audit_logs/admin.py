@@ -2,11 +2,12 @@
 Admin configuration for AuditLog.
 """
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 from .models import AuditLog
 
 
 @admin.register(AuditLog)
-class AuditLogAdmin(admin.ModelAdmin):
+class AuditLogAdmin(ModelAdmin):
     list_display = ('action', 'user', 'resource_type', 'ip_address', 'created_at')
     list_filter = ('action', 'resource_type', 'created_at')
     search_fields = ('user__email', 'resource_type', 'ip_address')

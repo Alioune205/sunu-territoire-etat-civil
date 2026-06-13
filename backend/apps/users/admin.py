@@ -2,12 +2,13 @@
 Admin configuration for User and CitizenProfile.
 """
 from django.contrib import admin
+from unfold.admin import ModelAdmin, StackedInline
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .models import User, CitizenProfile
 
 
-class CitizenProfileInline(admin.StackedInline):
+class CitizenProfileInline(StackedInline):
     model = CitizenProfile
     can_delete = False
     verbose_name = 'Profil citoyen'
@@ -15,7 +16,7 @@ class CitizenProfileInline(admin.StackedInline):
 
 
 @admin.register(User)
-class UserAdmin(BaseUserAdmin):
+class UserAdmin(BaseUserAdmin, ModelAdmin):
     model = User
     list_display = ('email', 'first_name', 'last_name', 'role', 'commune', 'is_verified', 'is_active')
     list_filter = ('role', 'is_verified', 'is_active', 'commune')
@@ -40,7 +41,7 @@ class UserAdmin(BaseUserAdmin):
 
 
 @admin.register(CitizenProfile)
-class CitizenProfileAdmin(admin.ModelAdmin):
+class CitizenProfileAdmin(ModelAdmin):
     list_display = ('user', 'cni_number', 'gender', 'date_of_birth')
     search_fields = ('user__email', 'user__first_name', 'user__last_name', 'cni_number')
     list_filter = ('gender',)
